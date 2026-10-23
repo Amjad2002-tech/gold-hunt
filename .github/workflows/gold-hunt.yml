@@ -1,0 +1,40 @@
+name: Gold Hunt alerts
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # every 30 minutes (UTC), 24/7
+  workflow_dispatch:          # "Run workflow" button for a manual check
+
+permissions:
+  contents: read
+
+concurrency: gold-hunt
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      # Remember which alerts were already sent today (kept private in the Actions cache)
+      - uses: actions/cache/restore@v4
+        with:
+          path: alerts_state.json
+          key: alert-state-${{ github.run_id }}
+          restore-keys: alert-state-
+      - name: Check prices and send alerts
+        env:
+          GOLD_HUNT_SETTINGS: ${{ secrets.GOLD_HUNT_SETTINGS }}
+          WHATSAPP_RECIPIENTS: ${{ secrets.WHATSAPP_RECIPIENTS }}
+        # Output is kept quiet so holdings and P/L never appear in the public log
+        run: python gold_hunt.py > /dev/null 2>&1 || (echo "Check failed" && exit 1)
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: alerts_state.json
+          key: alert-state-${{ github.run_id }}

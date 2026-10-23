@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gold Hunt</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f7f5f0;--card:#fff;--ink:#1d1b16;--mute:#6b665c;--line:#e6e1d6;--gold:#b8860b;--up:#1a7f4b;--down:#c0392b;--mid:#c27c0e;--a50:#3b6ea5;--a200:#9a8f7d}
+@media (prefers-color-scheme:dark){:root{--bg:#14130f;--card:#1e1c17;--ink:#f1ede4;--mute:#a39d90;--line:#332f27;--gold:#e0b44c;--up:#4cc38a;--down:#ef6b5b;--mid:#f0a83a;--a50:#7fa8d8;--a200:#7d7466}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px}
+h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);margin:4px 0 20px}
+.total{display:flex;gap:24px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:20px}
+.total div small{display:block;color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.05em}.total b{font-size:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:20px}
+.head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px}
+.head h2{margin:0;font-size:20px}.price{font-size:30px;font-weight:700}.chg{font-weight:600}
+.badge{display:inline-block;padding:6px 12px;border-radius:999px;font-weight:600;font-size:14px}
+.low{background:color-mix(in srgb,var(--up) 15%,transparent);color:var(--up)}
+.mid{background:color-mix(in srgb,var(--mid) 18%,transparent);color:var(--mid)}
+.high{background:color-mix(in srgb,var(--down) 15%,transparent);color:var(--down)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+.grid div{border:1px solid var(--line);border-radius:10px;padding:10px}.grid small{display:block;color:var(--mute);font-size:12px}
+.pos{color:var(--up)}.neg{color:var(--down)}ul{margin:6px 0 0;padding-left:20px;color:var(--mute)}
+.bar{height:10px;border-radius:5px;background:linear-gradient(90deg,var(--up),var(--mid),var(--down));position:relative;margin:6px 0 2px}
+.bar i{position:absolute;top:-4px;width:4px;height:18px;background:var(--ink);border-radius:2px}
+.range{display:flex;justify-content:space-between;color:var(--mute);font-size:12px}
+.charts{display:grid;grid-template-columns:2fr 1fr;gap:16px}@media(max-width:760px){.charts{grid-template-columns:1fr}}
+.cbox{position:relative;height:260px}.note{color:var(--mute);font-size:13px}
+</style></head><body><div class="wrap">
+<h1>Gold <span>Hunt</span></h1>
+<div class="sub">Updated __STAMP__ · 2-year analysis · Signals are historical/technical facts, not financial advice.</div>
+<div class="total" id="total"></div>
+<div id="cards"></div>
+<p class="note">How to read: <b>Range position</b> = % of the last 2 years when the price was lower. <b>RSI</b> above 70 = rose too fast, often pauses. <b>Alert levels</b> marked "auto" are unusual-move bands (50-day average ± 2 standard deviations); set your own in settings.ini.</p>
+</div>
+<script>
+const D=__DATA__;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const f=(v,d=2)=>v==null?'–':v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const cls=v=>v>=0?'pos':'neg';
+const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const tot={};D.forEach(a=>{const t=tot[a.currency]??={v:0,pl:0};t.v+=a.value;t.pl+=a.pl||0});
+document.getElementById('total').innerHTML=Object.entries(tot).map(([c,t])=>`<div><small>Holdings value (${c})</small><b>${f(t.v,0)}</b></div><div><small>Profit / loss (${c})</small><b class="${cls(t.pl)}">${t.pl>=0?'+':''}${f(t.pl,0)}</b></div>`).join('');
+D.forEach((a,i)=>{
+ const el=document.createElement('div');el.className='card';
+ el.innerHTML=`<div class="head"><div><h2>${a.name} <span class="note">${a.ticker}</span></h2>
+ <div class="price">${f(a.price)} <span class="note">${a.unit}</span></div>
+ <div class="chg ${cls(a.change_pct)}">${a.change_pct>=0?'▲':'▼'} ${f(a.change_pct)}% today · ${a.trend}</div></div>
+ <div><span class="badge ${a.tone}">${a.verdict}</span>${a.reasons.length?`<ul>${a.reasons.map(r=>`<li>${r}</li>`).join('')}</ul>`:''}</div></div>
+ <div class="grid">
+ <div><small>You hold</small><b>${f(a.qty,0)} ${a.qty_label}</b></div>
+ <div><small>Your buy price</small><b>${f(a.buy)}</b></div>
+ <div><small>Profit / loss</small><b class="${cls(a.pl)}">${a.pl>=0?'+':''}${f(a.pl,0)} ${a.currency}</b><br><span class="${cls(a.pl_pct)}">${f(a.pl_pct,1)}%</span></div>
+ <div><small>RSI (14)</small><b>${f(a.rsi,0)}</b></div>
+ <div><small>Alert above ${a.above_auto?'(auto)':''}</small><b>${f(a.above)}</b></div>
+ <div><small>Alert below ${a.below_auto?'(auto)':''}</small><b>${f(a.below)}</b></div></div>
+ <small class="note">Range position: higher than ${f(a.pct_rank,0)}% of the last 2 years</small>
+ <div class="bar"><i style="left:calc(${Math.min(99,a.pct_rank)}% - 2px)"></i></div>
+ <div class="range"><span>2y low ${f(a.lo)} (${a.lo_date})</span><span>2y high ${f(a.hi)} (${a.hi_date})</span></div>
+ <div class="charts" style="margin-top:16px"><div class="cbox"><canvas id="p${i}"></canvas></div><div class="cbox"><canvas id="m${i}"></canvas></div></div>
+ <div class="note">Right chart: average return by calendar month over 2 years — only ~2 samples per month, treat as a hint, not a rule.</div>`;
+ document.getElementById('cards').appendChild(el);
+ const s=a.series,grid={color:css('--line')},tick={color:css('--mute')};
+ const flat=v=>s.dates.map(()=>v);
+ new Chart(document.getElementById('p'+i),{type:'line',data:{labels:s.dates,datasets:[
+  {label:'Price',data:s.close,borderColor:css('--gold'),borderWidth:2,pointRadius:0},
+  {label:'50-day avg',data:s.sma50,borderColor:css('--a50'),borderWidth:1.2,pointRadius:0},
+  {label:'200-day avg',data:s.sma200,borderColor:css('--a200'),borderWidth:1.2,pointRadius:0},
+  ...(a.buy?[{label:'Your buy',data:flat(a.buy),borderColor:css('--ink'),borderDash:[5,4],borderWidth:1,pointRadius:0}]:[])]},
+  options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:css('--ink'),boxWidth:12}}},
+  scales:{x:{ticks:{...tick,maxTicksLimit:8},grid},y:{ticks:tick,grid}}}});
+ const mv=MN.map((_,k)=>a.months[k+1]??null);
+ new Chart(document.getElementById('m'+i),{type:'bar',data:{labels:MN,datasets:[{label:'Avg monthly %',data:mv,
+  backgroundColor:mv.map(v=>v>=0?css('--up'):css('--down'))}]},
+  options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:tick,grid:{display:false}},y:{ticks:tick,grid}}}});
+});
+</script></body></html>
