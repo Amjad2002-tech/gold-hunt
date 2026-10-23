@@ -36,7 +36,8 @@ def read_settings():
     stocks = [{"ticker": sec.split(":", 1)[1], **{k: cfg.get(sec, k, fallback="") for k in STOCK_KEYS}}
               for sec in cfg.sections() if sec.startswith("stock:")]
     alerts = {"daily_move_percent": cfg.get("alerts", "daily_move_percent", fallback="2"),
-              "check_every_minutes": cfg.get("alerts", "check_every_minutes", fallback="30")}
+              "check_every_minutes": cfg.get("alerts", "check_every_minutes", fallback="30"),
+              "language": cfg.get("alerts", "language", fallback="en")}
     whatsapp = list(cfg.items("whatsapp")) if cfg.has_section("whatsapp") else []
     return {"gold": gold, "stocks": stocks, "alerts": alerts}, whatsapp
 
@@ -81,7 +82,8 @@ def clean(data):
                        "alert_below": number(s.get("alert_below", ""), f"{name} alert below")})
     a = data.get("alerts", {})
     alerts = {"daily_move_percent": number(a.get("daily_move_percent", ""), "Daily move %", True),
-              "check_every_minutes": number(a.get("check_every_minutes", "30"), "Check every") or "30"}
+              "check_every_minutes": number(a.get("check_every_minutes", "30"), "Check every") or "30",
+              "language": "ar" if a.get("language") == "ar" else "en"}
     return gold, stocks, alerts
 
 
@@ -125,7 +127,8 @@ def quote(ticker, currency):
     asset.update(qty=0, qty_label="", buy=None, above=None, below=None)
     a = gold_hunt.analyse(asset, gold_hunt.fetch(asset))
     keep = ["price", "change_pct", "hi", "hi_date", "lo", "lo_date", "pct_rank", "rsi",
-            "sma50", "sma200", "band_upper", "band_lower", "verdict", "tone", "trend"]
+            "sma50", "sma200", "band_upper", "band_lower", "verdict", "tone", "trend",
+            "verdict_code", "trend_code"]
     return {k: a[k] for k in keep}
 
 
@@ -143,6 +146,8 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path == "/":
             self.send(200, PAGE.read_bytes(), "text/html")
+        elif url.path == "/i18n.js":
+            self.send(200, (HERE / "i18n.js").read_bytes(), "text/javascript")
         elif url.path == "/api/ping":
             global last_ping
             last_ping = time.time()

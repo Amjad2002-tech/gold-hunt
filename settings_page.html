@@ -14,7 +14,7 @@ h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);marg
 label{display:block;font-size:13px;font-weight:600;margin-bottom:4px}
 input,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--field);color:var(--ink);font:inherit}
 input:focus,select:focus{outline:2px solid var(--gold);outline-offset:-1px}
-input.bad{border-color:var(--down)}
+input[inputmode=decimal],[data-f=ticker]{direction:ltr;text-align:start}
 .live{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:baseline;background:var(--chip);border-radius:10px;padding:10px 14px;margin:14px 0}
 .live b{font-size:20px}.live .note{font-size:13px;color:var(--mute)}
 .pos{color:var(--up)}.neg{color:var(--down)}
@@ -32,63 +32,69 @@ input.bad{border-color:var(--down)}
 .bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:12px 16px}
 .bar .in{max-width:860px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
 #status{font-size:14px;color:var(--mute)}#status.ok{color:var(--up)}#status.err{color:var(--down)}
-.tabs{display:flex;gap:6px;margin-bottom:18px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.tabs{display:flex;gap:6px}
 .tabs a{padding:7px 14px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:14px;font-weight:600}
 .tabs a.on{background:var(--gold);border-color:var(--gold);color:#fff}
+.lang{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font:inherit;font-weight:600;cursor:pointer}
 details{margin-top:4px}summary{cursor:pointer;color:var(--mute);font-size:13px}
-</style></head><body>
+</style><script src="/i18n.js"></script></head><body>
 <div class="wrap">
- <nav class="tabs"><a href="/dashboard" onclick="this.textContent='Loading prices…'">📊 Dashboard</a><a class="on" href="/">⚙️ Settings</a></nav>
- <h1>Gold <span>Hunt</span> · Settings</h1>
- <div class="sub">Change your numbers, then click <b>Save</b>. It updates this PC and GitHub together. Live prices help you pick alert levels.</div>
+ <div class="top"><nav class="tabs"><a href="/dashboard" id="dashTab" data-i18n="tab_dash"></a><a class="on" href="/" data-i18n="tab_settings"></a></nav>
+ <button class="lang" id="lang"></button></div>
+ <h1>Gold <span>Hunt</span> · <b data-i18n="set_title"></b></h1>
+ <div class="sub" data-i18n="set_sub"></div>
 
  <div class="card" id="gold">
-  <h2>Gold (24K) <span class="badge" data-verdict></span></h2>
-  <p class="help">How much gold you hold and what you paid per gram.</p>
+  <h2><span data-i18n="gold_card"></span> <span class="badge" data-verdict></span></h2>
+  <p class="help" data-i18n="gold_help"></p>
   <div class="row">
-   <div><label>Grams I hold</label><input data-f="grams" inputmode="decimal"></div>
-   <div><label>My buy price (SAR per gram)</label><input data-f="buy_price" inputmode="decimal"></div>
+   <div><label data-i18n="f_grams"></label><input data-f="grams" inputmode="decimal"></div>
+   <div><label data-i18n="f_gold_buy"></label><input data-f="buy_price" inputmode="decimal"></div>
   </div>
-  <div class="live" data-live>Loading live price…</div>
+  <div class="live" data-live data-i18n="live_loading"></div>
   <div class="row">
-   <div><label>Alert me when price goes ABOVE</label><input data-f="alert_above" inputmode="decimal" placeholder="Auto (unusual high)"><div class="chips" data-chips="above"></div></div>
-   <div><label>Alert me when price goes BELOW</label><input data-f="alert_below" inputmode="decimal" placeholder="Auto (unusual low)"><div class="chips" data-chips="below"></div></div>
+   <div><label data-i18n="f_gold_above"></label><input data-f="alert_above" inputmode="decimal" data-i18n-ph="ph_auto_hi"><div class="chips" data-chips="above"></div></div>
+   <div><label data-i18n="f_gold_below"></label><input data-f="alert_below" inputmode="decimal" data-i18n-ph="ph_auto_lo"><div class="chips" data-chips="below"></div></div>
   </div>
  </div>
 
  <div class="card">
-  <h2>Stocks</h2>
-  <p class="help">Saudi stocks end with <b>.SR</b> (Aramco = 2222.SR, Al Rajhi = 1120.SR). US stocks use their normal ticker (NVDA, AAPL).</p>
+  <h2 data-i18n="stocks"></h2>
+  <p class="help" data-i18n="stocks_help"></p>
   <div id="stocks"></div>
-  <button class="btn ghost" id="add">+ Add a stock</button>
+  <button class="btn ghost" id="add" data-i18n="add_stock"></button>
  </div>
 
  <div class="card">
-  <h2>Alerts</h2>
-  <p class="help">You also get a WhatsApp message when any price moves a lot in one day.</p>
-  <div class="row"><div><label>Alert if the price moves more than (% in one day)</label><input id="daily" inputmode="decimal"></div></div>
-  <details><summary>What is "Auto"?</summary><p class="help">If you leave an alert level empty, Gold Hunt uses an "unusual move" level: the 50-day average ± 2 standard deviations. Prices rarely go past it, so an alert there means something unusual is happening.</p></details>
+  <h2 data-i18n="alerts"></h2>
+  <p class="help" data-i18n="alerts_help"></p>
+  <div class="row">
+   <div><label data-i18n="f_daily"></label><input id="daily" inputmode="decimal"></div>
+   <div><label data-i18n="f_lang"></label><select id="alertLang"><option value="ar">العربية</option><option value="en">English</option></select></div>
+  </div>
+  <details><summary data-i18n="auto_q"></summary><p class="help" data-i18n="auto_a"></p></details>
  </div>
 </div>
 
-<div class="bar"><div class="in"><span id="status">Loading…</span><button class="btn primary" id="save">Save</button></div></div>
+<div class="bar"><div class="in"><span id="status"></span><button class="btn primary" id="save" data-i18n="save"></button></div></div>
 
 <template id="stockTpl">
  <div class="card" style="background:var(--field)" data-stock>
-  <h2><span data-title>New stock</span> <span><span class="badge" data-verdict></span> <button class="btn remove" data-remove>Remove</button></span></h2>
+  <h2><span data-title></span> <span><span class="badge" data-verdict></span> <button class="btn remove" data-remove data-i18n="remove"></button></span></h2>
   <div class="row">
-   <div><label>Ticker</label><input data-f="ticker" placeholder="e.g. 2222.SR"></div>
-   <div><label>Name</label><input data-f="name" placeholder="e.g. Aramco"></div>
-   <div><label>Currency</label><select data-f="currency"><option>SAR</option><option>USD</option></select></div>
+   <div><label data-i18n="f_ticker"></label><input data-f="ticker" data-i18n-ph="ph_ticker"></div>
+   <div><label data-i18n="f_name"></label><input data-f="name" data-i18n-ph="ph_name"></div>
+   <div><label data-i18n="f_currency"></label><select data-f="currency"><option value="SAR">SAR</option><option value="USD">USD</option></select></div>
   </div>
   <div class="row" style="margin-top:12px">
-   <div><label>Shares I hold</label><input data-f="shares" inputmode="decimal"></div>
-   <div><label>My buy price (per share)</label><input data-f="buy_price" inputmode="decimal"></div>
+   <div><label data-i18n="f_shares"></label><input data-f="shares" inputmode="decimal"></div>
+   <div><label data-i18n="f_stock_buy"></label><input data-f="buy_price" inputmode="decimal"></div>
   </div>
-  <div class="live" data-live>Type a ticker to see its live price.</div>
+  <div class="live" data-live data-i18n="live_hint"></div>
   <div class="row">
-   <div><label>Alert me ABOVE</label><input data-f="alert_above" inputmode="decimal" placeholder="Auto"><div class="chips" data-chips="above"></div></div>
-   <div><label>Alert me BELOW</label><input data-f="alert_below" inputmode="decimal" placeholder="Auto"><div class="chips" data-chips="below"></div></div>
+   <div><label data-i18n="f_above"></label><input data-f="alert_above" inputmode="decimal" data-i18n-ph="ph_auto"><div class="chips" data-chips="above"></div></div>
+   <div><label data-i18n="f_below"></label><input data-f="alert_below" inputmode="decimal" data-i18n-ph="ph_auto"><div class="chips" data-chips="below"></div></div>
   </div>
  </div>
 </template>
@@ -97,80 +103,96 @@ details{margin-top:4px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const f=(v,d=2)=>v==null||isNaN(v)?'–':Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
 const r2=v=>Math.round(v*100)/100;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let dirty=false;
-const status=(t,c='')=>{const s=$('#status');s.textContent=t;s.className=c};
+const status=(msg,c='')=>{const s=$('#status');s.textContent=msg;s.className=c};
 const fill=(box,obj)=>$$('[data-f]',box).forEach(i=>{if(obj[i.dataset.f]!=null&&obj[i.dataset.f]!=='')i.value=obj[i.dataset.f]});
 const read=box=>Object.fromEntries($$('[data-f]',box).map(i=>[i.dataset.f,i.value.trim()]));
+const markDirty=()=>{dirty=true;status(t('unsaved'))};
+
+applyI18n();
+$('#lang').textContent=t('switch');
+$('#lang').onclick=()=>{ // switch language; keeps unsaved edits on the page
+ setLang(LANG==='ar'?'en':'ar');applyI18n();$('#lang').textContent=t('switch');
+ $$('[data-stock]').forEach(b=>b._title());
+ $$('#gold,[data-stock]').forEach(b=>b._q?render(b):($('[data-live]',b).textContent=t(b.id==='gold'?'live_loading':'live_hint')));
+ status(dirty?t('unsaved'):t('ready'));
+};
+$('#dashTab').onclick=e=>{e.target.textContent=t('loading_prices')};
 
 // Show live price, P/L and clickable suggestions for one card
 async function loadQuote(box,ticker,currency){
  const live=$('[data-live]',box), badge=$('[data-verdict]',box);
- if(!ticker){live.textContent='Type a ticker to see its live price.';return}
- live.textContent='Loading live price…';
+ box._q=null;badge.textContent='';
+ if(!ticker){live.textContent=t('live_hint');return}
+ live.textContent=t('live_loading');
  try{
   const r=await fetch(`/api/quote?ticker=${encodeURIComponent(ticker)}&currency=${currency}`);
   if(!r.ok)throw 0;
   box._q=await r.json();
- }catch{box._q=null;live.innerHTML=`<span class="neg">Could not find prices for "${ticker}". Check the ticker (Saudi stocks end with .SR).</span>`;badge.textContent='';return}
+ }catch{live.innerHTML=`<span class="neg">${esc(t('live_bad',{t:ticker}))}</span>`;return}
  render(box);
 }
 function render(box){
  const q=box._q;if(!q)return;
  const v=read(box), buy=parseFloat(v.buy_price), qty=parseFloat(v.grams??v.shares);
  const pl=(q.price-buy)*qty, plp=(q.price/buy-1)*100;
- $('[data-live]',box).innerHTML=`<span>Now <b>${f(q.price)}</b></span>
-  <span class="${q.change_pct>=0?'pos':'neg'}">${q.change_pct>=0?'▲':'▼'} ${f(q.change_pct)}% today</span>
-  ${isNaN(pl)?'':`<span>Your profit/loss: <b class="${pl>=0?'pos':'neg'}">${pl>=0?'+':''}${f(pl,0)}</b> <span class="${plp>=0?'pos':'neg'}">(${f(plp,1)}%)</span></span>`}
-  <span class="note">2-year range ${f(q.lo)} – ${f(q.hi)} · ${q.trend}</span>`;
- const b=$('[data-verdict]',box);b.textContent=q.verdict;b.className='badge '+q.tone;
+ $('[data-live]',box).innerHTML=`<span>${t('now')} <b>${f(q.price)}</b></span>
+  <span class="${q.change_pct>=0?'pos':'neg'}">${q.change_pct>=0?'▲':'▼'} <span dir="ltr">${f(q.change_pct)}%</span> ${t('today')}</span>
+  ${isNaN(pl)?'':`<span>${t('your_pl')}: <b class="${pl>=0?'pos':'neg'}" dir="ltr">${pl>=0?'+':''}${f(pl,0)}</b> <span class="${plp>=0?'pos':'neg'}" dir="ltr">(${f(plp,1)}%)</span></span>`}
+  <span class="note">${t('range',{lo:f(q.lo),hi:f(q.hi)})} · ${t('trend_'+q.trend_code)}</span>`;
+ const b=$('[data-verdict]',box);b.textContent=t('verdict_'+q.verdict_code);b.className='badge '+q.tone;
  // Only suggest levels that are actually above / below today's price
  const chips=(list,keep)=>list.filter(([,v])=>!isNaN(v)&&keep(v))
-  .map(([label,v])=>`<button type="button" class="chip" data-v="${r2(v)}">${label}: ${f(v)}</button>`).join('')
-  +'<button type="button" class="chip" data-v="">Auto</button>';
- $('[data-chips="above"]',box).innerHTML=chips([['Buy +5%',buy*1.05],['Buy +10%',buy*1.1],['Unusual high',q.band_upper],['2-year high',q.hi],['Now +5%',q.price*1.05]],v=>v>q.price);
- $('[data-chips="below"]',box).innerHTML=chips([['Your buy price',buy],['Buy −5%',buy*.95],['Unusual low',q.band_lower],['Now −5%',q.price*.95]],v=>v<q.price);
+  .map(([k,v])=>`<button type="button" class="chip" data-v="${r2(v)}">${t(k)}: ${f(v)}</button>`).join('')
+  +`<button type="button" class="chip" data-v="">${t('c_auto')}</button>`;
+ $('[data-chips="above"]',box).innerHTML=chips([['c_buy5',buy*1.05],['c_buy10',buy*1.1],['c_hi_band',q.band_upper],['c_hi2',q.hi],['c_now5',q.price*1.05]],v=>v>q.price);
+ $('[data-chips="below"]',box).innerHTML=chips([['c_buy',buy],['c_buy_m5',buy*.95],['c_lo_band',q.band_lower],['c_now_m5',q.price*.95]],v=>v<q.price);
 }
 document.addEventListener('click',e=>{
  const c=e.target.closest('.chip');if(!c)return;
- const input=c.parentElement.previousElementSibling;input.value=c.dataset.v;dirty=true;status('Unsaved changes');
+ c.parentElement.previousElementSibling.value=c.dataset.v;markDirty();
 });
 
 function addStock(s={currency:'SAR'}){
  const box=$('#stockTpl').content.firstElementChild.cloneNode(true);
- fill(box,s);$('#stocks').append(box);
- const title=()=>$('[data-title]',box).textContent=read(box).name||read(box).ticker||'New stock';title();
- const refresh=()=>{const v=read(box);if(v.ticker.endsWith('.SR'))$('[data-f=currency]',box).value='SAR';loadQuote(box,v.ticker.toUpperCase(),$('[data-f=currency]',box).value)};
+ applyI18n(box);fill(box,s);$('#stocks').append(box);
+ box._title=()=>$('[data-title]',box).textContent=read(box).name||read(box).ticker||t('new_stock');box._title();
+ const refresh=()=>{const v=read(box);if(v.ticker.toUpperCase().endsWith('.SR'))$('[data-f=currency]',box).value='SAR';loadQuote(box,v.ticker.toUpperCase(),$('[data-f=currency]',box).value)};
  $('[data-f=ticker]',box).addEventListener('change',refresh);
  $('[data-f=currency]',box).addEventListener('change',refresh);
- box.addEventListener('input',()=>{title();render(box)});
- $('[data-remove]',box).onclick=()=>{if(confirm(`Remove ${read(box).name||'this stock'}?`)){box.remove();dirty=true;status('Unsaved changes')}};
+ box.addEventListener('input',()=>{box._title();render(box)});
+ $('[data-remove]',box).onclick=()=>{if(confirm(t('confirm_remove',{n:read(box).name||read(box).ticker||t('new_stock')}))){box.remove();markDirty()}};
  if(s.ticker)refresh();
  return box;
 }
 $('#add').onclick=()=>{$('[data-f=ticker]',addStock()).focus()};
 $('#gold').addEventListener('input',()=>render($('#gold')));
-document.addEventListener('input',()=>{dirty=true;status('Unsaved changes')});
+document.addEventListener('input',markDirty);
+$('#alertLang').addEventListener('change',markDirty);
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
 
 $('#save').onclick=async()=>{
- const body={gold:read($('#gold')),stocks:$$('[data-stock]').map(read),alerts:{daily_move_percent:$('#daily').value.trim()}};
- const btn=$('#save');btn.disabled=true;status('Saving…');
+ const body={gold:read($('#gold')),stocks:$$('[data-stock]').map(read),
+  alerts:{daily_move_percent:$('#daily').value.trim(),language:$('#alertLang').value}};
+ const btn=$('#save');btn.disabled=true;status(t('saving'));
  try{
   const r=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d=await r.json();
   if(!r.ok)status('⚠ '+d.error,'err');
-  else if(d.github){dirty=false;status('✓ Saved on this PC and GitHub — used from the next check','ok')}
-  else{dirty=false;status('Saved on this PC, but GitHub was not updated: '+(d.error||'unknown error'),'err')}
- }catch{status('⚠ Could not reach the settings program. Is its window still open?','err')}
+  else{dirty=false;d.github?status(t('saved_both'),'ok'):status(t('saved_pc',{e:d.error||'?'}),'err')}
+ }catch{status(t('no_server'),'err')}
  btn.disabled=false;
 };
 
 setInterval(()=>fetch('/api/ping').catch(()=>{}),20000); // keeps the app program running while open
+status(t('loading'));
 (async()=>{
  const s=await (await fetch('/api/settings')).json();
  fill($('#gold'),s.gold);$('#daily').value=s.alerts.daily_move_percent||'2';
+ $('#alertLang').value=s.alerts.language||'en';
  s.stocks.forEach(addStock);
- status('Ready');
+ status(t('ready'));
  loadQuote($('#gold'),'GOLD','SAR');
 })();
 </script></body></html>

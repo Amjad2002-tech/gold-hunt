@@ -59,6 +59,7 @@ def load_settings():
             })
     alerts = {
         "daily_move": num("alerts", "daily_move_percent") or 2.0,
+        "lang": "ar" if cfg.get("alerts", "language", fallback="en").strip().lower() == "ar" else "en",
     }
     phones = dict(cfg.items("whatsapp")) if cfg.has_section("whatsapp") else {}
     # On GitHub the numbers come from the WHATSAPP_RECIPIENTS secret: "phone=key" per line
@@ -105,26 +106,23 @@ def analyse(asset, s):
     above = upper if asset["above"] is None else asset["above"]
     below = lower if asset["below"] is None else asset["below"]
 
-    # Sell-signal score (historical/technical, not advice)
-    reasons = []
+    # Sell-signal score (historical/technical, not advice). Codes are translated by TEXT / i18n.js
+    codes = []
     if pct_rank >= 85:
-        reasons.append(f"price is higher than {pct_rank:.0f}% of the last 2 years")
+        codes.append(["rank", round(pct_rank)])
     if r.iloc[-1] >= 70:
-        reasons.append(f"RSI {r.iloc[-1]:.0f} = overbought (rose too fast)")
+        codes.append(["rsi", round(float(r.iloc[-1]))])
     if price >= 1.10 * sma200.iloc[-1]:
-        reasons.append(f"{(price / sma200.iloc[-1] - 1) * 100:.0f}% above its 200-day average (stretched)")
+        codes.append(["stretch", round((price / sma200.iloc[-1] - 1) * 100)])
     if price < sma50.iloc[-1] and sma50.iloc[-1] > sma200.iloc[-1]:
-        reasons.append("dropped below 50-day average - uptrend may be fading")
-    score = len(reasons)
-    if score >= 3:
-        verdict, tone = "Strong sell zone (historically)", "high"
-    elif score == 2:
-        verdict, tone = "Watch closely - sell signals building", "mid"
-    else:
-        verdict, tone = "No sell signal - trend not stretched", "low"
-
-    trend = ("Uptrend" if price > sma50.iloc[-1] > sma200.iloc[-1]
-             else "Downtrend" if price < sma50.iloc[-1] < sma200.iloc[-1] else "Sideways")
+        codes.append(["fading", 0])
+    score = len(codes)
+    verdict_code, tone = ("strong", "high") if score >= 3 else ("watch", "mid") if score == 2 else ("none", "low")
+    trend_code = ("up" if price > sma50.iloc[-1] > sma200.iloc[-1]
+                  else "down" if price < sma50.iloc[-1] < sma200.iloc[-1] else "side")
+    en = TEXT["en"]
+    reasons = [en["reason_" + k].format(v=v) for k, v in codes]
+    verdict, trend = en["verdict_" + verdict_code], en["trend_" + trend_code]
 
     # Average return by calendar month (small sample - indicative only)
     monthly = s.resample("ME").last().pct_change().dropna()
@@ -143,6 +141,7 @@ def analyse(asset, s):
         "above": above, "below": below, "band_upper": upper, "band_lower": lower, "above_auto": asset["above"] is None,
         "below_auto": asset["below"] is None,
         "score": score, "reasons": reasons, "verdict": verdict, "tone": tone, "trend": trend,
+        "reason_codes": codes, "verdict_code": verdict_code, "trend_code": trend_code,
         "months": months, "pl": pl, "pl_pct": pl_pct, "value": price * asset["qty"],
         "series": {
             "dates": [d.strftime("%Y-%m-%d") for d in s.index],
@@ -154,19 +153,65 @@ def analyse(asset, s):
 
 
 # ---------------------------------------------------------------- alerts
+def unit(a, T):
+    return T["unit_gram"] if a["key"] == "GOLD" else T["unit_share"].format(c=T.get("cur_" + a["currency"], a["currency"]))
+
+
 def find_alerts(a, cfg_alerts):
+    T = TEXT[cfg_alerts["lang"]]
     out = []
-    p = a["price"]
+    p, u = a["price"], unit(a, T)
+    name = T["gold_name"] if a["key"] == "GOLD" else a["name"]
     if p >= a["above"]:
-        out.append(("above", f"⬆️ {a['name']} is {p:,.2f} {a['unit']} - above your alert level {a['above']:,.2f}"))
+        out.append(("above", T["alert_above"].format(n=name, p=p, u=u, lvl=a["above"])))
     if p <= a["below"]:
-        out.append(("below", f"⬇️ {a['name']} is {p:,.2f} {a['unit']} - below your alert level {a['below']:,.2f}"))
+        out.append(("below", T["alert_below"].format(n=name, p=p, u=u, lvl=a["below"])))
     if abs(a["change_pct"]) >= cfg_alerts["daily_move"]:
         arrow = "📈" if a["change_pct"] > 0 else "📉"
-        out.append(("move", f"{arrow} {a['name']} moved {a['change_pct']:+.1f}% today ({p:,.2f} {a['unit']})"))
+        out.append(("move", T["alert_move"].format(a=arrow, n=name, c=a["change_pct"], p=p, u=u)))
     if a["score"] >= 3:
-        out.append(("sell", f"🟡 {a['name']}: {a['verdict']} - " + "; ".join(a["reasons"])))
+        reasons = T["sep"].join(T["reason_" + k].format(v=v) for k, v in a["reason_codes"])
+        out.append(("sell", f"🟡 {name}: {T['verdict_' + a['verdict_code']]} - {reasons}"))
     return out
+
+
+# All user-facing text for WhatsApp alerts (the pages use i18n.js)
+TEXT = {
+    "en": {
+        "title": "Gold Hunt alert", "sep": "; ", "gold_name": "Gold 24K",
+        "unit_gram": "SAR/gram", "unit_share": "{c}/share", "cur_SAR": "SAR", "cur_USD": "USD",
+        "alert_above": "⬆️ {n} is {p:,.2f} {u} - above your alert level {lvl:,.2f}",
+        "alert_below": "⬇️ {n} is {p:,.2f} {u} - below your alert level {lvl:,.2f}",
+        "alert_move": "{a} {n} moved {c:+.1f}% today ({p:,.2f} {u})",
+        "pl": " | your P/L: {pl:+,.0f} {c} ({pp:+.1f}%)",
+        "reason_rank": "price is higher than {v}% of the last 2 years",
+        "reason_rsi": "RSI {v} = overbought (rose too fast)",
+        "reason_stretch": "{v}% above its 200-day average (stretched)",
+        "reason_fading": "dropped below 50-day average - uptrend may be fading",
+        "verdict_strong": "Strong sell zone (historically)",
+        "verdict_watch": "Watch closely - sell signals building",
+        "verdict_none": "No sell signal - trend not stretched",
+        "trend_up": "Uptrend", "trend_down": "Downtrend", "trend_side": "Sideways",
+        "test": "✅ Gold Hunt test message - alerts are working.",
+    },
+    "ar": {
+        "title": "تنبيه Gold Hunt", "sep": "، ", "gold_name": "ذهب عيار 24",
+        "unit_gram": "ريال/جرام", "unit_share": "{c}/سهم", "cur_SAR": "ريال", "cur_USD": "دولار",
+        "alert_above": "⬆️ {n} وصل إلى {p:,.2f} {u} - أعلى من مستوى التنبيه {lvl:,.2f}",
+        "alert_below": "⬇️ {n} نزل إلى {p:,.2f} {u} - أقل من مستوى التنبيه {lvl:,.2f}",
+        "alert_move": "{a} {n} تحرك {c:+.1f}% اليوم ({p:,.2f} {u})",
+        "pl": " | ربحك/خسارتك: {pl:+,.0f} {c} ({pp:+.1f}%)",
+        "reason_rank": "السعر أعلى من {v}% من أيام آخر سنتين",
+        "reason_rsi": "مؤشر RSI عند {v} = تشبّع شرائي (ارتفع بسرعة)",
+        "reason_stretch": "أعلى بـ {v}% من متوسط 200 يوم (مرتفع جداً)",
+        "reason_fading": "نزل تحت متوسط 50 يوم - الاتجاه الصاعد قد يضعف",
+        "verdict_strong": "منطقة بيع قوية (تاريخياً)",
+        "verdict_watch": "راقب عن قرب - إشارات البيع تتزايد",
+        "verdict_none": "لا توجد إشارة بيع",
+        "trend_up": "اتجاه صاعد", "trend_down": "اتجاه هابط", "trend_side": "اتجاه عرضي",
+        "test": "✅ رسالة تجريبية من Gold Hunt - التنبيهات تعمل.",
+    },
+}
 
 
 def send_whatsapp(phones, text):
@@ -189,9 +234,11 @@ def dispatch(results, cfg_alerts, phones, send=True):
     today = dt.date.today().isoformat()
     state = json.loads(STATE.read_text()) if STATE.exists() else {}
     state = {k: v for k, v in state.items() if v == today}  # forget older days
+    T = TEXT[cfg_alerts["lang"]]
     keys, lines = [], []
     for a in results:
-        pl = f" | your P/L: {a['pl']:+,.0f} {a['currency']} ({a['pl_pct']:+.1f}%)" if a["pl"] is not None else ""
+        pl = (T["pl"].format(pl=a["pl"], c=T.get("cur_" + a["currency"], a["currency"]), pp=a["pl_pct"])
+              if a["pl"] is not None else "")
         for kind, msg in find_alerts(a, cfg_alerts):
             k = f"{a['key']}:{kind}"
             if k not in state:  # each alert only once per day
@@ -200,7 +247,7 @@ def dispatch(results, cfg_alerts, phones, send=True):
     if not lines:
         print("No new alerts.")
         return
-    text = "Gold Hunt alert\n\n" + "\n\n".join(lines)
+    text = T["title"] + "\n\n" + "\n\n".join(lines)
     print(text)
     if not send:
         return
@@ -228,7 +275,7 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     assets, cfg_alerts, phones = load_settings()
     if "--test" in sys.argv:
-        send_whatsapp(phones, "✅ Gold Hunt test message - alerts are working.")
+        send_whatsapp(phones, TEXT[cfg_alerts["lang"]]["test"])
         return
     results, failed = [], 0
     for a in assets:

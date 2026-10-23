@@ -28,56 +28,69 @@ h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);marg
 .tabs{display:flex;gap:6px;margin-bottom:18px}.tabs[hidden]{display:none}
 .tabs a{padding:7px 14px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:14px;font-weight:600}
 .tabs a.on{background:var(--gold);border-color:var(--gold);color:#fff}.note{color:var(--mute);font-size:13px}
-</style></head><body><div class="wrap">
-<nav class="tabs" id="tabs" hidden><a class="on" href="/dashboard">📊 Dashboard</a><a href="/">⚙️ Settings</a></nav>
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}.top .tabs{margin:0}
+.lang{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font:inherit;font-weight:600;cursor:pointer}
+[dir=rtl] ul{padding-left:0;padding-right:20px}
+</style><script src="i18n.js"></script></head><body><div class="wrap">
+<div class="top"><nav class="tabs" id="tabs" hidden><a class="on" href="/dashboard" data-i18n="tab_dash"></a><a href="/" data-i18n="tab_settings"></a></nav>
+<button class="lang" id="lang"></button></div>
 <h1>Gold <span>Hunt</span></h1>
-<div class="sub">Updated __STAMP__ · 2-year analysis · Signals are historical/technical facts, not financial advice.</div>
+<div class="sub" id="sub"></div>
 <div class="total" id="total"></div>
 <div id="cards"></div>
-<p class="note">How to read: <b>Range position</b> = % of the last 2 years when the price was lower. <b>RSI</b> above 70 = rose too fast, often pauses. <b>Alert levels</b> marked "auto" are unusual-move bands (50-day average ± 2 standard deviations); set your own in settings.ini.</p>
+<p class="note" data-i18n="howto"></p>
 </div>
 <script>
-const D=__DATA__;
+const D=__DATA__, STAMP='__STAMP__';
+applyI18n();
+document.getElementById('lang').textContent=t('switch');
+document.getElementById('lang').onclick=()=>{setLang(LANG==='ar'?'en':'ar');location.reload()};
+document.getElementById('sub').textContent=t('dash_sub',{stamp:STAMP});
 if(location.port==='8765'){ // opened inside the Gold Hunt app
  document.getElementById('tabs').hidden=false;
  setInterval(()=>fetch('/api/ping').catch(()=>{}),20000);
 }
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const f=(v,d=2)=>v==null?'–':v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
 const cls=v=>v>=0?'pos':'neg';
-const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const tot={};D.forEach(a=>{const t=tot[a.currency]??={v:0,pl:0};t.v+=a.value;t.pl+=a.pl||0});
-document.getElementById('total').innerHTML=Object.entries(tot).map(([c,t])=>`<div><small>Holdings value (${c})</small><b>${f(t.v,0)}</b></div><div><small>Profit / loss (${c})</small><b class="${cls(t.pl)}">${t.pl>=0?'+':''}${f(t.pl,0)}</b></div>`).join('');
+const cur=c=>t('cur_'+c)===('cur_'+c)?c:t('cur_'+c);
+const unit=a=>a.key==='GOLD'?t('unit_gram'):t('unit_share',{c:cur(a.currency)});
+const nameOf=a=>a.key==='GOLD'?t('gold_name'):a.name;
+const MN=t('months');
+const tot={};D.forEach(a=>{const s=tot[a.currency]??={v:0,pl:0};s.v+=a.value;s.pl+=a.pl||0});
+document.getElementById('total').innerHTML=Object.entries(tot).map(([c,s])=>`<div><small>${t('value',{c:cur(c)})}</small><b>${f(s.v,0)}</b></div><div><small>${t('pl',{c:cur(c)})}</small><b class="${cls(s.pl)}">${s.pl>=0?'+':''}${f(s.pl,0)}</b></div>`).join('');
 D.forEach((a,i)=>{
  const el=document.createElement('div');el.className='card';
- el.innerHTML=`<div class="head"><div><h2>${a.name} <span class="note">${a.ticker}</span></h2>
- <div class="price">${f(a.price)} <span class="note">${a.unit}</span></div>
- <div class="chg ${cls(a.change_pct)}">${a.change_pct>=0?'▲':'▼'} ${f(a.change_pct)}% today · ${a.trend}</div></div>
- <div><span class="badge ${a.tone}">${a.verdict}</span>${a.reasons.length?`<ul>${a.reasons.map(r=>`<li>${r}</li>`).join('')}</ul>`:''}</div></div>
+ const reasons=(a.reason_codes||[]).map(([k,v])=>t('reason_'+k,{v}));
+ el.innerHTML=`<div class="head"><div><h2>${esc(nameOf(a))} <span class="note">${esc(a.ticker)}</span></h2>
+ <div class="price">${f(a.price)} <span class="note">${unit(a)}</span></div>
+ <div class="chg ${cls(a.change_pct)}">${a.change_pct>=0?'▲':'▼'} ${f(a.change_pct)}% ${t('today')} · ${t('trend_'+a.trend_code)}</div></div>
+ <div><span class="badge ${a.tone}">${t('verdict_'+a.verdict_code)}</span>${reasons.length?`<ul>${reasons.map(r=>`<li>${r}</li>`).join('')}</ul>`:''}</div></div>
  <div class="grid">
- <div><small>You hold</small><b>${f(a.qty,0)} ${a.qty_label}</b></div>
- <div><small>Your buy price</small><b>${f(a.buy)}</b></div>
- <div><small>Profit / loss</small><b class="${cls(a.pl)}">${a.pl>=0?'+':''}${f(a.pl,0)} ${a.currency}</b><br><span class="${cls(a.pl_pct)}">${f(a.pl_pct,1)}%</span></div>
- <div><small>RSI (14)</small><b>${f(a.rsi,0)}</b></div>
- <div><small>Alert above ${a.above_auto?'(auto)':''}</small><b>${f(a.above)}</b></div>
- <div><small>Alert below ${a.below_auto?'(auto)':''}</small><b>${f(a.below)}</b></div></div>
- <small class="note">Range position: higher than ${f(a.pct_rank,0)}% of the last 2 years</small>
- <div class="bar"><i style="left:calc(${Math.min(99,a.pct_rank)}% - 2px)"></i></div>
- <div class="range"><span>2y low ${f(a.lo)} (${a.lo_date})</span><span>2y high ${f(a.hi)} (${a.hi_date})</span></div>
+ <div><small>${t('you_hold')}</small><b>${f(a.qty,0)} ${t(a.key==='GOLD'?'grams':'shares')}</b></div>
+ <div><small>${t('buy_price')}</small><b>${f(a.buy)}</b></div>
+ <div><small>${t('profit_loss')}</small><b class="${cls(a.pl)}">${a.pl>=0?'+':''}${f(a.pl,0)} ${cur(a.currency)}</b><br><span class="${cls(a.pl_pct)}">${f(a.pl_pct,1)}%</span></div>
+ <div><small>${t('rsi')}</small><b>${f(a.rsi,0)}</b></div>
+ <div><small>${t('alert_above')} ${a.above_auto?t('auto'):''}</small><b>${f(a.above)}</b></div>
+ <div><small>${t('alert_below')} ${a.below_auto?t('auto'):''}</small><b>${f(a.below)}</b></div></div>
+ <small class="note">${t('range_pos',{v:f(a.pct_rank,0)})}</small>
+ <div class="bar" dir="ltr"><i style="left:calc(${Math.min(99,a.pct_rank)}% - 2px)"></i></div>
+ <div class="range" dir="ltr"><span>${t('lo2',{v:f(a.lo),d:a.lo_date})}</span><span>${t('hi2',{v:f(a.hi),d:a.hi_date})}</span></div>
  <div class="charts" style="margin-top:16px"><div class="cbox"><canvas id="p${i}"></canvas></div><div class="cbox"><canvas id="m${i}"></canvas></div></div>
- <div class="note">Right chart: average return by calendar month over 2 years — only ~2 samples per month, treat as a hint, not a rule.</div>`;
+ <div class="note">${t('month_note')}</div>`;
  document.getElementById('cards').appendChild(el);
  const s=a.series,grid={color:css('--line')},tick={color:css('--mute')};
  const flat=v=>s.dates.map(()=>v);
  new Chart(document.getElementById('p'+i),{type:'line',data:{labels:s.dates,datasets:[
-  {label:'Price',data:s.close,borderColor:css('--gold'),borderWidth:2,pointRadius:0},
-  {label:'50-day avg',data:s.sma50,borderColor:css('--a50'),borderWidth:1.2,pointRadius:0},
-  {label:'200-day avg',data:s.sma200,borderColor:css('--a200'),borderWidth:1.2,pointRadius:0},
-  ...(a.buy?[{label:'Your buy',data:flat(a.buy),borderColor:css('--ink'),borderDash:[5,4],borderWidth:1,pointRadius:0}]:[])]},
-  options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:css('--ink'),boxWidth:12}}},
+  {label:t('s_price'),data:s.close,borderColor:css('--gold'),borderWidth:2,pointRadius:0},
+  {label:t('s_50'),data:s.sma50,borderColor:css('--a50'),borderWidth:1.2,pointRadius:0},
+  {label:t('s_200'),data:s.sma200,borderColor:css('--a200'),borderWidth:1.2,pointRadius:0},
+  ...(a.buy?[{label:t('s_buy'),data:flat(a.buy),borderColor:css('--ink'),borderDash:[5,4],borderWidth:1,pointRadius:0}]:[])]},
+  options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{rtl:LANG==='ar',labels:{color:css('--ink'),boxWidth:12}}},
   scales:{x:{ticks:{...tick,maxTicksLimit:8},grid},y:{ticks:tick,grid}}}});
  const mv=MN.map((_,k)=>a.months[k+1]??null);
- new Chart(document.getElementById('m'+i),{type:'bar',data:{labels:MN,datasets:[{label:'Avg monthly %',data:mv,
+ new Chart(document.getElementById('m'+i),{type:'bar',data:{labels:MN,datasets:[{label:t('s_month'),data:mv,
   backgroundColor:mv.map(v=>v>=0?css('--up'):css('--down'))}]},
   options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:tick,grid:{display:false}},y:{ticks:tick,grid}}}});
 });
