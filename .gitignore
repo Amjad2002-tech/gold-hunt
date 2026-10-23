@@ -4,3 +4,4 @@ settings.ini
 dashboard.html
 alerts_state.json
 *.lnk
+widget_state.json

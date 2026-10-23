@@ -11,7 +11,7 @@ if ($answer -ne 'Yes') { exit }
 
 # Stop the app if it is open
 Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
-    Where-Object { $_.CommandLine -like "*$dest*" } |
+    Where-Object { $_.CommandLine -like "*$dest*" } |  # app and widget
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Milliseconds 500
 
@@ -20,6 +20,8 @@ if (Test-Path $settings) {
     Copy-Item $settings (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gold Hunt settings backup.ini') -Force
 }
 Remove-Item (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Gold Hunt.lnk') -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Gold Hunt Widget.lnk') -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\Gold Hunt Widget.lnk') -ErrorAction SilentlyContinue
 Remove-Item (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Gold Hunt.lnk') -ErrorAction SilentlyContinue
 Remove-Item $regKey -Recurse -ErrorAction SilentlyContinue
 Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue

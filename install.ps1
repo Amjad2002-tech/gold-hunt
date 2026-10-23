@@ -19,7 +19,7 @@ if (-not (Test-Path $pythonw)) { $pythonw = Join-Path (Split-Path $python) 'pyth
 
 # 2. App files (settings.ini only on first install, so your numbers are never overwritten)
 New-Item -ItemType Directory -Force $dest | Out-Null
-$files = 'gold_hunt.py','settings_page.py','settings_page.html','dashboard_template.html','i18n.js',
+$files = 'gold_hunt.py','settings_page.py','widget.pyw','settings_page.html','dashboard_template.html','i18n.js',
          'gold_hunt.ico','requirements.txt','uninstall.ps1'
 foreach ($f in $files) { Copy-Item (Join-Path $src $f) $dest -Force }
 if (-not (Test-Path (Join-Path $dest 'settings.ini'))) {
@@ -39,6 +39,24 @@ foreach ($path in $start, $desktop) {
     $lnk.Description      = 'Gold Hunt - gold and stock prices, dashboard and alerts'
     $lnk.Save()
 }
+
+# 3b. Desktop widget: Start menu entry + start automatically when Windows starts
+$widgetStart = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Gold Hunt Widget.lnk'
+$widgetBoot  = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\Gold Hunt Widget.lnk'
+foreach ($path in $widgetStart, $widgetBoot) {
+    $lnk = $ws.CreateShortcut($path)
+    $lnk.TargetPath       = $pythonw
+    $lnk.Arguments        = "`"$dest\widget.pyw`""
+    $lnk.WorkingDirectory = $dest
+    $lnk.IconLocation     = "$dest\gold_hunt.ico,0"
+    $lnk.Description      = 'Gold Hunt desktop widget - live prices and profit/loss'
+    $lnk.Save()
+}
+# Restart the widget so it runs the newly installed version
+Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
+    Where-Object { $_.CommandLine -like '*widget.pyw*' } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+Start-Process -FilePath $pythonw -ArgumentList "`"$dest\widget.pyw`"" -WorkingDirectory $dest
 
 # 4. Entry in Settings > Apps > Installed apps (with Uninstall button)
 $size = [int]((Get-ChildItem $dest -Recurse | Measure-Object Length -Sum).Sum / 1KB)
