@@ -65,7 +65,8 @@ D.forEach((a,i)=>{
  const reasons=(a.reason_codes||[]).map(([k,v])=>t('reason_'+k,{v}));
  el.innerHTML=`<div class="head"><div><h2>${esc(nameOf(a))} <span class="note">${esc(a.ticker)}</span></h2>
  <div class="price">${f(a.price)} <span class="note">${unit(a)}</span></div>
- <div class="chg ${cls(a.change_pct)}">${a.change_pct>=0?'▲':'▼'} ${f(a.change_pct)}% ${t('today')} · ${t('trend_'+a.trend_code)}</div></div>
+ <div class="chg ${cls(a.change_pct)}">${a.change_pct>=0?'▲':'▼'} ${f(a.change_pct)}% ${t('today')} · ${t('trend_'+a.trend_code)}</div>
+ <div class="note">${timeLine(a)}</div></div>
  <div><span class="badge ${a.tone}">${t('verdict_'+a.verdict_code)}</span>${reasons.length?`<ul>${reasons.map(r=>`<li>${r}</li>`).join('')}</ul>`:''}</div></div>
  <div class="grid">
  <div><small>${t('you_hold')}</small><b>${f(a.qty,0)} ${t(a.key==='GOLD'?'grams':'shares')}</b></div>

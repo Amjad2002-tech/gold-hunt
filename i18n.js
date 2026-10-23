@@ -43,6 +43,10 @@ const I18N = {
   c_buy5: 'Buy +5%', c_buy10: 'Buy +10%', c_hi_band: 'Unusual high', c_hi2: '2-year high', c_now5: 'Now +5%',
   c_buy: 'Your buy price', c_buy_m5: 'Buy −5%', c_lo_band: 'Unusual low', c_now_m5: 'Now −5%', c_auto: 'Auto',
   confirm_remove: 'Remove {n}?',
+  t_live: '🟢 Live price · {t}', t_closed: '⚪ Market closed · last trade {t}', t_pulled: 'pulled {t}', t_riyadh: 'Riyadh time',
+  f_ticker_search: 'Company or ticker', ph_search: 'Type a name, e.g. Al Rajhi, Apple',
+  search_none: 'No match. Try the English company name or the ticker number (e.g. 1120).', search_wait: 'Searching…',
+  m_saudi: 'Saudi', m_us: 'US',
  },
  ar: {
   dir: 'rtl', switch: 'English',
@@ -83,6 +87,10 @@ const I18N = {
   c_buy5: 'الشراء +5%', c_buy10: 'الشراء +10%', c_hi_band: 'ارتفاع غير عادي', c_hi2: 'أعلى سعر بالسنتين', c_now5: 'الآن +5%',
   c_buy: 'سعر شرائك', c_buy_m5: 'الشراء −5%', c_lo_band: 'انخفاض غير عادي', c_now_m5: 'الآن −5%', c_auto: 'تلقائي',
   confirm_remove: 'حذف {n}؟',
+  t_live: '🟢 سعر مباشر · {t}', t_closed: '⚪ السوق مغلق · آخر صفقة {t}', t_pulled: 'تم السحب {t}', t_riyadh: 'بتوقيت الرياض',
+  f_ticker_search: 'اسم الشركة أو الرمز', ph_search: 'اكتب الاسم بالإنجليزي، مثل Al Rajhi أو Apple',
+  search_none: 'لا توجد نتائج. جرّب اسم الشركة بالإنجليزي أو رقم السهم (مثل 1120).', search_wait: 'جاري البحث…',
+  m_saudi: 'سعودي', m_us: 'أمريكي',
  },
 };
 
@@ -100,6 +108,20 @@ function applyI18n(root = document) {
   document.documentElement.dir = I18N[LANG].dir;
   root.querySelectorAll('[data-i18n]').forEach(el => { el.innerHTML = t(el.dataset.i18n); });
   root.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+}
+
+// "23 Oct 14:59" in Riyadh time (Latin digits in both languages)
+function fmtTime(iso) {
+  if (!iso) return '–';
+  const loc = LANG === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB';
+  return new Date(iso).toLocaleString(loc, {timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
+}
+
+// When the price is from + when it was pulled; older than 20 min = market closed / delayed
+function timeLine(q) {
+  if (!q.price_time) return '';
+  const live = Date.now() - new Date(q.price_time) < 20 * 60 * 1000;
+  return `${t(live ? 't_live' : 't_closed', {t: fmtTime(q.price_time)})} · ${t('t_pulled', {t: fmtTime(q.pulled_at)})} (${t('t_riyadh')})`;
 }
 
 function setLang(lang) {

@@ -24,6 +24,7 @@ DASHBOARD = HERE / "dashboard.html"
 
 USD_SAR = 3.75            # the riyal is pegged to the dollar
 GRAMS_PER_OUNCE = 31.1035
+RIYADH = dt.timezone(dt.timedelta(hours=3), "AST")  # Saudi Arabia has no daylight saving
 
 
 # ---------------------------------------------------------------- settings
@@ -79,7 +80,17 @@ def fetch(asset):
     s.index = s.index.tz_localize(None).normalize()
     if asset["key"] == "GOLD":
         s = s * USD_SAR / GRAMS_PER_OUNCE  # USD/oz -> SAR/gram
-    # During trading hours the last daily bar already holds the current price
+    # During trading hours the last daily bar already holds the current price.
+    # Time of the last trade = last 1-minute bar (falls back to the daily bar's date).
+    price_time = df.index[-1]
+    try:
+        minute = yf.Ticker(asset["ticker"]).history(period="5d", interval="1m")
+        if not minute.empty:
+            price_time = minute.index[-1]
+    except Exception:
+        pass
+    s.attrs["price_time"] = price_time.isoformat()
+    s.attrs["pulled_at"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     return s
 
 
@@ -134,6 +145,7 @@ def analyse(asset, s):
 
     return {
         **asset, "price": price, "prev": prev, "change_pct": (price / prev - 1) * 100,
+        "price_time": s.attrs.get("price_time"), "pulled_at": s.attrs.get("pulled_at"),
         "hi": hi, "hi_date": s.idxmax().strftime("%Y-%m-%d"),
         "lo": lo, "lo_date": s.idxmin().strftime("%Y-%m-%d"),
         "pct_rank": pct_rank, "rsi": float(r.iloc[-1]),
@@ -178,7 +190,7 @@ def find_alerts(a, cfg_alerts):
 # All user-facing text for WhatsApp alerts (the pages use i18n.js)
 TEXT = {
     "en": {
-        "title": "Gold Hunt alert", "sep": "; ", "gold_name": "Gold 24K",
+        "title": "Gold Hunt alert", "riyadh": "Riyadh time", "sep": "; ", "gold_name": "Gold 24K",
         "unit_gram": "SAR/gram", "unit_share": "{c}/share", "cur_SAR": "SAR", "cur_USD": "USD",
         "alert_above": "⬆️ {n} is {p:,.2f} {u} - above your alert level {lvl:,.2f}",
         "alert_below": "⬇️ {n} is {p:,.2f} {u} - below your alert level {lvl:,.2f}",
@@ -195,7 +207,7 @@ TEXT = {
         "test": "✅ Gold Hunt test message - alerts are working.",
     },
     "ar": {
-        "title": "تنبيه Gold Hunt", "sep": "، ", "gold_name": "ذهب عيار 24",
+        "title": "تنبيه Gold Hunt", "riyadh": "بتوقيت الرياض", "sep": "، ", "gold_name": "ذهب عيار 24",
         "unit_gram": "ريال/جرام", "unit_share": "{c}/سهم", "cur_SAR": "ريال", "cur_USD": "دولار",
         "alert_above": "⬆️ {n} وصل إلى {p:,.2f} {u} - أعلى من مستوى التنبيه {lvl:,.2f}",
         "alert_below": "⬇️ {n} نزل إلى {p:,.2f} {u} - أقل من مستوى التنبيه {lvl:,.2f}",
@@ -247,7 +259,8 @@ def dispatch(results, cfg_alerts, phones, send=True):
     if not lines:
         print("No new alerts.")
         return
-    text = T["title"] + "\n\n" + "\n\n".join(lines)
+    riyadh = dt.datetime.now(RIYADH).strftime("%Y-%m-%d %H:%M")
+    text = f"{T['title']}\n🕒 {riyadh} ({T['riyadh']})\n\n" + "\n\n".join(lines)
     print(text)
     if not send:
         return

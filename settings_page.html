@@ -37,6 +37,11 @@ input[inputmode=decimal],[data-f=ticker]{direction:ltr;text-align:start}
 .tabs a{padding:7px 14px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:14px;font-weight:600}
 .tabs a.on{background:var(--gold);border-color:var(--gold);color:#fff}
 .lang{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font:inherit;font-weight:600;cursor:pointer}
+.search{position:relative}
+.results{position:absolute;z-index:5;top:100%;inset-inline:0;min-width:280px;margin-top:4px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);overflow:hidden}
+.results button{display:flex;justify-content:space-between;gap:10px;width:100%;padding:9px 12px;border:0;background:none;color:var(--ink);font:inherit;text-align:start;cursor:pointer}
+.results button:hover,.results button:focus{background:var(--chip)}
+.results small{color:var(--mute)}.results .empty{padding:9px 12px;color:var(--mute);font-size:13px}
 details{margin-top:4px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 </style><script src="/i18n.js"></script></head><body>
 <div class="wrap">
@@ -83,7 +88,7 @@ details{margin-top:4px}summary{cursor:pointer;color:var(--mute);font-size:13px}
  <div class="card" style="background:var(--field)" data-stock>
   <h2><span data-title></span> <span><span class="badge" data-verdict></span> <button class="btn remove" data-remove data-i18n="remove"></button></span></h2>
   <div class="row">
-   <div><label data-i18n="f_ticker"></label><input data-f="ticker" data-i18n-ph="ph_ticker"></div>
+   <div class="search"><label data-i18n="f_ticker_search"></label><input data-f="ticker" data-i18n-ph="ph_search" autocomplete="off"><div class="results" hidden></div></div>
    <div><label data-i18n="f_name"></label><input data-f="name" data-i18n-ph="ph_name"></div>
    <div><label data-i18n="f_currency"></label><select data-f="currency"><option value="SAR">SAR</option><option value="USD">USD</option></select></div>
   </div>
@@ -140,7 +145,8 @@ function render(box){
  $('[data-live]',box).innerHTML=`<span>${t('now')} <b>${f(q.price)}</b></span>
   <span class="${q.change_pct>=0?'pos':'neg'}">${q.change_pct>=0?'▲':'▼'} <span dir="ltr">${f(q.change_pct)}%</span> ${t('today')}</span>
   ${isNaN(pl)?'':`<span>${t('your_pl')}: <b class="${pl>=0?'pos':'neg'}" dir="ltr">${pl>=0?'+':''}${f(pl,0)}</b> <span class="${plp>=0?'pos':'neg'}" dir="ltr">(${f(plp,1)}%)</span></span>`}
-  <span class="note">${t('range',{lo:f(q.lo),hi:f(q.hi)})} · ${t('trend_'+q.trend_code)}</span>`;
+  <span class="note">${t('range',{lo:f(q.lo),hi:f(q.hi)})} · ${t('trend_'+q.trend_code)}</span>
+  <span class="note" style="flex-basis:100%">${timeLine(q)}</span>`;
  const b=$('[data-verdict]',box);b.textContent=t('verdict_'+q.verdict_code);b.className='badge '+q.tone;
  // Only suggest levels that are actually above / below today's price
  const chips=(list,keep)=>list.filter(([,v])=>!isNaN(v)&&keep(v))
@@ -159,7 +165,26 @@ function addStock(s={currency:'SAR'}){
  applyI18n(box);fill(box,s);$('#stocks').append(box);
  box._title=()=>$('[data-title]',box).textContent=read(box).name||read(box).ticker||t('new_stock');box._title();
  const refresh=()=>{const v=read(box);if(v.ticker.toUpperCase().endsWith('.SR'))$('[data-f=currency]',box).value='SAR';loadQuote(box,v.ticker.toUpperCase(),$('[data-f=currency]',box).value)};
- $('[data-f=ticker]',box).addEventListener('change',refresh);
+ // Search by company name: type -> pick from the list -> ticker, name and currency are filled in
+ const tick=$('[data-f=ticker]',box), list=$('.results',box);
+ let timer, picked=false;
+ const pick=r=>{tick.value=r.ticker;$('[data-f=name]',box).value=r.name;$('[data-f=currency]',box).value=r.currency;
+  list.hidden=true;picked=true;box._title();markDirty();refresh()};
+ tick.addEventListener('input',()=>{
+  clearTimeout(timer);picked=false;const q=tick.value.trim();
+  if(q.length<2){list.hidden=true;return}
+  list.hidden=false;list.innerHTML=`<div class="empty">${t('search_wait')}</div>`;
+  timer=setTimeout(async()=>{
+   let rows=[];try{rows=await (await fetch('/api/search?q='+encodeURIComponent(q))).json()}catch{}
+   if(tick.value.trim()!==q)return; // user kept typing
+   list.innerHTML=rows.length?'':`<div class="empty">${t('search_none')}</div>`;
+   rows.forEach(r=>{const b=document.createElement('button');b.type='button';
+    b.innerHTML=`<span><b dir="ltr">${esc(r.ticker)}</b> — ${esc(r.name)}</span><small>${t(r.currency==='SAR'?'m_saudi':'m_us')}</small>`;
+    b.onmousedown=e=>{e.preventDefault();pick(r)};list.append(b)});
+  },350);
+ });
+ tick.addEventListener('blur',()=>setTimeout(()=>{list.hidden=true},150));
+ tick.addEventListener('change',()=>{if(!picked)refresh()});
  $('[data-f=currency]',box).addEventListener('change',refresh);
  box.addEventListener('input',()=>{box._title();render(box)});
  $('[data-remove]',box).onclick=()=>{if(confirm(t('confirm_remove',{n:read(box).name||read(box).ticker||t('new_stock')}))){box.remove();markDirty()}};

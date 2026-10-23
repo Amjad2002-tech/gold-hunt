@@ -128,8 +128,23 @@ def quote(ticker, currency):
     a = gold_hunt.analyse(asset, gold_hunt.fetch(asset))
     keep = ["price", "change_pct", "hi", "hi_date", "lo", "lo_date", "pct_rank", "rsi",
             "sma50", "sma200", "band_upper", "band_lower", "verdict", "tone", "trend",
-            "verdict_code", "trend_code"]
+            "verdict_code", "trend_code", "price_time", "pulled_at"]
     return {k: a[k] for k in keep}
+
+
+def search(query):
+    """Find stocks/ETFs by company name or ticker (Yahoo Finance search)."""
+    out = []
+    for q in gold_hunt.yf.Search(query, max_results=8).quotes:
+        sym = q.get("symbol", "")
+        if q.get("quoteType") not in ("EQUITY", "ETF") or not sym:
+            continue
+        if "." in sym and not sym.endswith(".SR"):
+            continue  # only Saudi (.SR) and US listings - the app works in SAR and USD
+        out.append({"ticker": sym, "name": q.get("shortname") or q.get("longname") or sym,
+                    "exchange": q.get("exchDisp") or q.get("exchange", ""),
+                    "currency": "SAR" if sym.endswith(".SR") else "USD"})
+    return out
 
 
 # ---------------------------------------------------------------- web server
@@ -156,6 +171,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send(200, build_dashboard(), "text/html")
         elif url.path == "/api/settings":
             self.send(200, read_settings()[0])
+        elif url.path == "/api/search":
+            q = parse_qs(url.query).get("q", [""])[0].strip()
+            try:
+                self.send(200, search(q) if len(q) >= 2 else [])
+            except Exception:
+                self.send(200, [])
         elif url.path == "/api/quote":
             q = parse_qs(url.query)
             try:
