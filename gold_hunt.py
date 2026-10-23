@@ -32,7 +32,7 @@ def load_settings():
     cfg.optionxform = str  # keep phone numbers / tickers as written
     # On GitHub the whole settings file comes from the GOLD_HUNT_SETTINGS secret
     if os.environ.get("GOLD_HUNT_SETTINGS"):
-        cfg.read_string(os.environ["GOLD_HUNT_SETTINGS"])
+        cfg.read_string(os.environ["GOLD_HUNT_SETTINGS"].lstrip("﻿?"))
     else:
         cfg.read(SETTINGS, encoding="utf-8")
 
