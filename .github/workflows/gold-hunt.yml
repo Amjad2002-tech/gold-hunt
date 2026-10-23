@@ -32,10 +32,10 @@ jobs:
           GOLD_HUNT_SETTINGS: ${{ secrets.GOLD_HUNT_SETTINGS }}
           WHATSAPP_RECIPIENTS: ${{ secrets.WHATSAPP_RECIPIENTS }}
         # Output is kept quiet so holdings and P/L never appear in the public log;
-        # on failure only error lines are shown, with all numbers masked
+        # on failure only error type names are shown (no names, numbers or prices)
         run: |
           python gold_hunt.py > out.txt 2>&1 && exit 0
-          grep -iE "error|exception|line [0-9]+" out.txt | sed -E 's/[0-9][0-9.,]*/#/g' | tail -15
+          grep -oE "FAILED_ASSET [A-Za-z]+|^[A-Za-z.]+(Error|Exception)" out.txt | sort | uniq -c
           exit 1
       - uses: actions/cache/save@v4
         if: always()

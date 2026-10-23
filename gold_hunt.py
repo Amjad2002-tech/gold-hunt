@@ -32,7 +32,7 @@ def load_settings():
     cfg.optionxform = str  # keep phone numbers / tickers as written
     # On GitHub the whole settings file comes from the GOLD_HUNT_SETTINGS secret
     if os.environ.get("GOLD_HUNT_SETTINGS"):
-        cfg.read_string(os.environ["GOLD_HUNT_SETTINGS"].lstrip("﻿?"))
+        cfg.read_string(os.environ["GOLD_HUNT_SETTINGS"].lstrip("﻿"))
     else:
         cfg.read(SETTINGS, encoding="utf-8")
 
@@ -78,15 +78,7 @@ def fetch(asset):
     s.index = s.index.tz_localize(None).normalize()
     if asset["key"] == "GOLD":
         s = s * USD_SAR / GRAMS_PER_OUNCE  # USD/oz -> SAR/gram
-    # latest intraday price if available
-    try:
-        live = yf.Ticker(asset["ticker"]).fast_info["last_price"]
-        if live and live == live:
-            if asset["key"] == "GOLD":
-                live = live * USD_SAR / GRAMS_PER_OUNCE
-            s.iloc[-1] = live
-    except Exception:
-        pass
+    # During trading hours the last daily bar already holds the current price
     return s
 
 
@@ -110,8 +102,8 @@ def analyse(asset, s):
     # Auto alert levels = Bollinger-style bands (unusual moves), unless user set them
     upper = float(sma50.iloc[-1] + 2 * std50.iloc[-1])
     lower = float(sma50.iloc[-1] - 2 * std50.iloc[-1])
-    above = asset["above"] or upper
-    below = asset["below"] or lower
+    above = upper if asset["above"] is None else asset["above"]
+    below = lower if asset["below"] is None else asset["below"]
 
     # Sell-signal score (historical/technical, not advice)
     reasons = []
@@ -178,44 +170,52 @@ def find_alerts(a, cfg_alerts):
 
 
 def send_whatsapp(phones, text):
+    """Send to every number; return True if at least one message was delivered."""
+    delivered = False
     for phone, key in phones.items():
         url = ("https://api.callmebot.com/whatsapp.php?phone=" + phone.strip()
                + "&text=" + urllib.parse.quote(text) + "&apikey=" + key.strip())
+        masked = phone.strip()[-4:].rjust(len(phone.strip()), "*")
         try:
             r = requests.get(url, timeout=30)
-            print(f"  WhatsApp -> {phone[-4:].rjust(len(phone), '*')}: HTTP {r.status_code}")
-        except Exception as e:
-            print(f"  WhatsApp -> {phone}: FAILED {e}")
+            delivered |= r.ok
+            print(f"  WhatsApp -> {masked}: HTTP {r.status_code}")
+        except Exception as e:  # message would contain the URL with the API key
+            print(f"  WhatsApp -> {masked}: FAILED ({type(e).__name__})")
+    return delivered
 
 
 def dispatch(results, cfg_alerts, phones, send=True):
     today = dt.date.today().isoformat()
     state = json.loads(STATE.read_text()) if STATE.exists() else {}
     state = {k: v for k, v in state.items() if v == today}  # forget older days
-    lines = []
+    keys, lines = [], []
     for a in results:
         pl = f" | your P/L: {a['pl']:+,.0f} {a['currency']} ({a['pl_pct']:+.1f}%)" if a["pl"] is not None else ""
         for kind, msg in find_alerts(a, cfg_alerts):
             k = f"{a['key']}:{kind}"
-            if k in state:
-                continue  # each alert only once per day
-            state[k] = today
-            lines.append(msg + pl)
+            if k not in state:  # each alert only once per day
+                keys.append(k)
+                lines.append(msg + pl)
     if not lines:
         print("No new alerts.")
-    else:
-        text = "Gold Hunt alert\n\n" + "\n\n".join(lines)
-        print(text)
-        if send and phones:
-            send_whatsapp(phones, text)
-        elif send:
-            print("  (no WhatsApp numbers in settings.ini yet)")
-    STATE.write_text(json.dumps(state))
+        return
+    text = "Gold Hunt alert\n\n" + "\n\n".join(lines)
+    print(text)
+    if not send:
+        return
+    if not phones:
+        print("  (no WhatsApp numbers yet)")
+        return
+    # Only remember alerts that actually went out, so failed ones retry next check
+    if send_whatsapp(phones, text):
+        state.update(dict.fromkeys(keys, today))
+        STATE.write_text(json.dumps(state))
 
 
 # ---------------------------------------------------------------- dashboard
 def build_dashboard(results):
-    data = json.dumps(results)
+    data = json.dumps(results).replace("</", "<\\/")  # keep user text from closing the <script>
     stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     html = (HERE / "dashboard_template.html").read_text(encoding="utf-8")
     html = html.replace("__DATA__", data).replace("__STAMP__", stamp)
@@ -230,16 +230,20 @@ def main():
     if "--test" in sys.argv:
         send_whatsapp(phones, "✅ Gold Hunt test message - alerts are working.")
         return
-    results = []
+    results, failed = [], 0
     for a in assets:
         try:
             r = analyse(a, fetch(a))
             results.append(r)
             print(f"{r['name']:<10} {r['price']:>10,.2f} {r['unit']:<10} {r['change_pct']:+.2f}%  {r['verdict']}")
         except Exception as e:
+            failed += 1
             print(f"{a['name']}: error - {e}")
+            print(f"FAILED_ASSET {type(e).__name__}")  # name-free line for the public cloud log
     build_dashboard(results)
     dispatch(results, cfg_alerts, phones, send="--no-send" not in sys.argv)
+    if failed:
+        sys.exit(1)  # make the cloud run show red so failures are noticed
 
 
 if __name__ == "__main__":

@@ -126,6 +126,8 @@ class App(tk.Tk):
             if not s["ticker"]:
                 continue  # empty row
             s["ticker"] = s["ticker"].upper()
+            if any(o["ticker"] == s["ticker"] for o in stocks):
+                raise ValueError(f"{s['ticker']} is listed twice - remove one row")
             name = s["name"] or s["ticker"]
             s["name"] = name
             s["currency"] = (s["currency"] or "SAR").upper()
