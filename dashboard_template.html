@@ -24,8 +24,12 @@ h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);marg
 .bar i{position:absolute;top:-4px;width:4px;height:18px;background:var(--ink);border-radius:2px}
 .range{display:flex;justify-content:space-between;color:var(--mute);font-size:12px}
 .charts{display:grid;grid-template-columns:2fr 1fr;gap:16px}@media(max-width:760px){.charts{grid-template-columns:1fr}}
-.cbox{position:relative;height:260px}.note{color:var(--mute);font-size:13px}
+.cbox{position:relative;height:260px}
+.tabs{display:flex;gap:6px;margin-bottom:18px}.tabs[hidden]{display:none}
+.tabs a{padding:7px 14px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:14px;font-weight:600}
+.tabs a.on{background:var(--gold);border-color:var(--gold);color:#fff}.note{color:var(--mute);font-size:13px}
 </style></head><body><div class="wrap">
+<nav class="tabs" id="tabs" hidden><a class="on" href="/dashboard">📊 Dashboard</a><a href="/">⚙️ Settings</a></nav>
 <h1>Gold <span>Hunt</span></h1>
 <div class="sub">Updated __STAMP__ · 2-year analysis · Signals are historical/technical facts, not financial advice.</div>
 <div class="total" id="total"></div>
@@ -34,6 +38,10 @@ h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);marg
 </div>
 <script>
 const D=__DATA__;
+if(location.port==='8765'){ // opened inside the Gold Hunt app
+ document.getElementById('tabs').hidden=false;
+ setInterval(()=>fetch('/api/ping').catch(()=>{}),20000);
+}
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const f=(v,d=2)=>v==null?'–':v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
 const cls=v=>v>=0?'pos':'neg';

@@ -32,9 +32,13 @@ input.bad{border-color:var(--down)}
 .bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:12px 16px}
 .bar .in{max-width:860px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
 #status{font-size:14px;color:var(--mute)}#status.ok{color:var(--up)}#status.err{color:var(--down)}
+.tabs{display:flex;gap:6px;margin-bottom:18px}
+.tabs a{padding:7px 14px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:14px;font-weight:600}
+.tabs a.on{background:var(--gold);border-color:var(--gold);color:#fff}
 details{margin-top:4px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 </style></head><body>
 <div class="wrap">
+ <nav class="tabs"><a href="/dashboard" onclick="this.textContent='Loading prices…'">📊 Dashboard</a><a class="on" href="/">⚙️ Settings</a></nav>
  <h1>Gold <span>Hunt</span> · Settings</h1>
  <div class="sub">Change your numbers, then click <b>Save</b>. It updates this PC and GitHub together. Live prices help you pick alert levels.</div>
 
@@ -161,6 +165,7 @@ $('#save').onclick=async()=>{
  btn.disabled=false;
 };
 
+setInterval(()=>fetch('/api/ping').catch(()=>{}),20000); // keeps the app program running while open
 (async()=>{
  const s=await (await fetch('/api/settings')).json();
  fill($('#gold'),s.gold);$('#daily').value=s.alerts.daily_move_percent||'2';

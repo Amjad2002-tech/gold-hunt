@@ -8,7 +8,9 @@ import json
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -20,6 +22,8 @@ PAGE = HERE / "settings_page.html"
 GH = r"C:\Program Files\GitHub CLI\gh.exe"
 REPO = "Amjad2002-tech/gold-hunt"
 PORT = 8765
+IDLE_SECONDS = 90  # the open page pings every 20s; stop when nobody has for this long
+last_ping = time.time()
 STOCK_KEYS = ["name", "shares", "buy_price", "currency", "alert_above", "alert_below"]
 
 
@@ -139,6 +143,12 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path == "/":
             self.send(200, PAGE.read_bytes(), "text/html")
+        elif url.path == "/api/ping":
+            global last_ping
+            last_ping = time.time()
+            self.send(200, {"ok": True})
+        elif url.path == "/dashboard":
+            self.send(200, build_dashboard(), "text/html")
         elif url.path == "/api/settings":
             self.send(200, read_settings()[0])
         elif url.path == "/api/quote":
@@ -165,16 +175,55 @@ class Handler(BaseHTTPRequestHandler):
         pass  # keep the console quiet
 
 
+def build_dashboard():
+    """Fresh analysis of the PC settings -> dashboard HTML (no alerts are sent)."""
+    assets, _, _ = gold_hunt.load_settings()
+    results = []
+    for a in assets:
+        try:
+            results.append(gold_hunt.analyse(a, gold_hunt.fetch(a)))
+        except Exception:
+            pass  # a bad ticker just doesn't show
+    gold_hunt.build_dashboard(results)
+    return gold_hunt.DASHBOARD.read_bytes()
+
+
+def open_app(url):
+    """Open as its own app window (Edge/Chrome app mode), else a normal browser tab."""
+    for exe in [r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe"]:
+        if Path(exe).exists():
+            subprocess.Popen([exe, f"--app={url}", "--window-size=1100,900"])
+            return
+    webbrowser.open(url)
+
+
+def watchdog(server):
+    """Stop the background program a while after the app window is closed."""
+    while True:
+        time.sleep(15)
+        if time.time() - last_ping > IDLE_SECONDS:
+            server.shutdown()
+            return
+
+
+class Server(ThreadingHTTPServer):
+    allow_reuse_address = False  # on Windows reuse lets a 2nd copy share the port silently
+
+
 def main():
-    try:
-        server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    except OSError:  # already running - just open it
-        webbrowser.open(f"http://127.0.0.1:{PORT}/")
-        return
+    global last_ping
     url = f"http://127.0.0.1:{PORT}/"
-    print(f"Gold Hunt settings page: {url}\nClose this window to stop it.")
+    try:
+        server = Server(("127.0.0.1", PORT), Handler)
+    except OSError:  # already running - just open another window
+        open_app(url)
+        return
+    last_ping = time.time()
     if "--no-browser" not in sys.argv:
-        threading.Timer(0.5, webbrowser.open, [url]).start()
+        threading.Timer(0.3, open_app, [url]).start()
+    threading.Thread(target=watchdog, args=(server,), daemon=True).start()
     server.serve_forever()
 
 
