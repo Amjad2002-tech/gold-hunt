@@ -1,3 +1,4 @@
 @echo off
 cd /d "%~dp0"
-start "" pythonw settings_app.pyw
+title Gold Hunt Settings - close this window when you are done
+python settings_page.py

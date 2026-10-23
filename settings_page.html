@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gold Hunt Settings</title>
+<style>
+:root{--bg:#f7f5f0;--card:#fff;--ink:#1d1b16;--mute:#6b665c;--line:#e6e1d6;--gold:#b8860b;--up:#1a7f4b;--down:#c0392b;--mid:#c27c0e;--field:#fbfaf7;--chip:#f1ece1}
+@media (prefers-color-scheme:dark){:root{--bg:#14130f;--card:#1e1c17;--ink:#f1ede4;--mute:#a39d90;--line:#332f27;--gold:#e0b44c;--up:#4cc38a;--down:#ef6b5b;--mid:#f0a83a;--field:#171612;--chip:#2a2720}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:24px 16px 120px}
+h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);margin:4px 0 22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
+.card h2{margin:0 0 4px;font-size:18px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.help{color:var(--mute);font-size:13px;margin:0 0 14px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:4px}
+input,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--field);color:var(--ink);font:inherit}
+input:focus,select:focus{outline:2px solid var(--gold);outline-offset:-1px}
+input.bad{border-color:var(--down)}
+.live{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:baseline;background:var(--chip);border-radius:10px;padding:10px 14px;margin:14px 0}
+.live b{font-size:20px}.live .note{font-size:13px;color:var(--mute)}
+.pos{color:var(--up)}.neg{color:var(--down)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer}
+.chip:hover{border-color:var(--gold)}
+.badge{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px}
+.low{background:color-mix(in srgb,var(--up) 15%,transparent);color:var(--up)}
+.mid{background:color-mix(in srgb,var(--mid) 18%,transparent);color:var(--mid)}
+.high{background:color-mix(in srgb,var(--down) 15%,transparent);color:var(--down)}
+.btn{border:0;border-radius:10px;padding:11px 18px;font:inherit;font-weight:600;cursor:pointer}
+.primary{background:var(--gold);color:#fff}.primary:disabled{opacity:.6;cursor:wait}
+.ghost{background:transparent;border:1px dashed var(--line);color:var(--ink);width:100%}
+.remove{background:transparent;color:var(--down);border:1px solid var(--line);padding:5px 12px;font-size:13px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:12px 16px}
+.bar .in{max-width:860px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
+#status{font-size:14px;color:var(--mute)}#status.ok{color:var(--up)}#status.err{color:var(--down)}
+details{margin-top:4px}summary{cursor:pointer;color:var(--mute);font-size:13px}
+</style></head><body>
+<div class="wrap">
+ <h1>Gold <span>Hunt</span> · Settings</h1>
+ <div class="sub">Change your numbers, then click <b>Save</b>. It updates this PC and GitHub together. Live prices help you pick alert levels.</div>
+
+ <div class="card" id="gold">
+  <h2>Gold (24K) <span class="badge" data-verdict></span></h2>
+  <p class="help">How much gold you hold and what you paid per gram.</p>
+  <div class="row">
+   <div><label>Grams I hold</label><input data-f="grams" inputmode="decimal"></div>
+   <div><label>My buy price (SAR per gram)</label><input data-f="buy_price" inputmode="decimal"></div>
+  </div>
+  <div class="live" data-live>Loading live price…</div>
+  <div class="row">
+   <div><label>Alert me when price goes ABOVE</label><input data-f="alert_above" inputmode="decimal" placeholder="Auto (unusual high)"><div class="chips" data-chips="above"></div></div>
+   <div><label>Alert me when price goes BELOW</label><input data-f="alert_below" inputmode="decimal" placeholder="Auto (unusual low)"><div class="chips" data-chips="below"></div></div>
+  </div>
+ </div>
+
+ <div class="card">
+  <h2>Stocks</h2>
+  <p class="help">Saudi stocks end with <b>.SR</b> (Aramco = 2222.SR, Al Rajhi = 1120.SR). US stocks use their normal ticker (NVDA, AAPL).</p>
+  <div id="stocks"></div>
+  <button class="btn ghost" id="add">+ Add a stock</button>
+ </div>
+
+ <div class="card">
+  <h2>Alerts</h2>
+  <p class="help">You also get a WhatsApp message when any price moves a lot in one day.</p>
+  <div class="row"><div><label>Alert if the price moves more than (% in one day)</label><input id="daily" inputmode="decimal"></div></div>
+  <details><summary>What is "Auto"?</summary><p class="help">If you leave an alert level empty, Gold Hunt uses an "unusual move" level: the 50-day average ± 2 standard deviations. Prices rarely go past it, so an alert there means something unusual is happening.</p></details>
+ </div>
+</div>
+
+<div class="bar"><div class="in"><span id="status">Loading…</span><button class="btn primary" id="save">Save</button></div></div>
+
+<template id="stockTpl">
+ <div class="card" style="background:var(--field)" data-stock>
+  <h2><span data-title>New stock</span> <span><span class="badge" data-verdict></span> <button class="btn remove" data-remove>Remove</button></span></h2>
+  <div class="row">
+   <div><label>Ticker</label><input data-f="ticker" placeholder="e.g. 2222.SR"></div>
+   <div><label>Name</label><input data-f="name" placeholder="e.g. Aramco"></div>
+   <div><label>Currency</label><select data-f="currency"><option>SAR</option><option>USD</option></select></div>
+  </div>
+  <div class="row" style="margin-top:12px">
+   <div><label>Shares I hold</label><input data-f="shares" inputmode="decimal"></div>
+   <div><label>My buy price (per share)</label><input data-f="buy_price" inputmode="decimal"></div>
+  </div>
+  <div class="live" data-live>Type a ticker to see its live price.</div>
+  <div class="row">
+   <div><label>Alert me ABOVE</label><input data-f="alert_above" inputmode="decimal" placeholder="Auto"><div class="chips" data-chips="above"></div></div>
+   <div><label>Alert me BELOW</label><input data-f="alert_below" inputmode="decimal" placeholder="Auto"><div class="chips" data-chips="below"></div></div>
+  </div>
+ </div>
+</template>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const f=(v,d=2)=>v==null||isNaN(v)?'–':Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const r2=v=>Math.round(v*100)/100;
+let dirty=false;
+const status=(t,c='')=>{const s=$('#status');s.textContent=t;s.className=c};
+const fill=(box,obj)=>$$('[data-f]',box).forEach(i=>{if(obj[i.dataset.f]!=null&&obj[i.dataset.f]!=='')i.value=obj[i.dataset.f]});
+const read=box=>Object.fromEntries($$('[data-f]',box).map(i=>[i.dataset.f,i.value.trim()]));
+
+// Show live price, P/L and clickable suggestions for one card
+async function loadQuote(box,ticker,currency){
+ const live=$('[data-live]',box), badge=$('[data-verdict]',box);
+ if(!ticker){live.textContent='Type a ticker to see its live price.';return}
+ live.textContent='Loading live price…';
+ try{
+  const r=await fetch(`/api/quote?ticker=${encodeURIComponent(ticker)}&currency=${currency}`);
+  if(!r.ok)throw 0;
+  box._q=await r.json();
+ }catch{box._q=null;live.innerHTML=`<span class="neg">Could not find prices for "${ticker}". Check the ticker (Saudi stocks end with .SR).</span>`;badge.textContent='';return}
+ render(box);
+}
+function render(box){
+ const q=box._q;if(!q)return;
+ const v=read(box), buy=parseFloat(v.buy_price), qty=parseFloat(v.grams??v.shares);
+ const pl=(q.price-buy)*qty, plp=(q.price/buy-1)*100;
+ $('[data-live]',box).innerHTML=`<span>Now <b>${f(q.price)}</b></span>
+  <span class="${q.change_pct>=0?'pos':'neg'}">${q.change_pct>=0?'▲':'▼'} ${f(q.change_pct)}% today</span>
+  ${isNaN(pl)?'':`<span>Your profit/loss: <b class="${pl>=0?'pos':'neg'}">${pl>=0?'+':''}${f(pl,0)}</b> <span class="${plp>=0?'pos':'neg'}">(${f(plp,1)}%)</span></span>`}
+  <span class="note">2-year range ${f(q.lo)} – ${f(q.hi)} · ${q.trend}</span>`;
+ const b=$('[data-verdict]',box);b.textContent=q.verdict;b.className='badge '+q.tone;
+ // Only suggest levels that are actually above / below today's price
+ const chips=(list,keep)=>list.filter(([,v])=>!isNaN(v)&&keep(v))
+  .map(([label,v])=>`<button type="button" class="chip" data-v="${r2(v)}">${label}: ${f(v)}</button>`).join('')
+  +'<button type="button" class="chip" data-v="">Auto</button>';
+ $('[data-chips="above"]',box).innerHTML=chips([['Buy +5%',buy*1.05],['Buy +10%',buy*1.1],['Unusual high',q.band_upper],['2-year high',q.hi],['Now +5%',q.price*1.05]],v=>v>q.price);
+ $('[data-chips="below"]',box).innerHTML=chips([['Your buy price',buy],['Buy −5%',buy*.95],['Unusual low',q.band_lower],['Now −5%',q.price*.95]],v=>v<q.price);
+}
+document.addEventListener('click',e=>{
+ const c=e.target.closest('.chip');if(!c)return;
+ const input=c.parentElement.previousElementSibling;input.value=c.dataset.v;dirty=true;status('Unsaved changes');
+});
+
+function addStock(s={currency:'SAR'}){
+ const box=$('#stockTpl').content.firstElementChild.cloneNode(true);
+ fill(box,s);$('#stocks').append(box);
+ const title=()=>$('[data-title]',box).textContent=read(box).name||read(box).ticker||'New stock';title();
+ const refresh=()=>{const v=read(box);if(v.ticker.endsWith('.SR'))$('[data-f=currency]',box).value='SAR';loadQuote(box,v.ticker.toUpperCase(),$('[data-f=currency]',box).value)};
+ $('[data-f=ticker]',box).addEventListener('change',refresh);
+ $('[data-f=currency]',box).addEventListener('change',refresh);
+ box.addEventListener('input',()=>{title();render(box)});
+ $('[data-remove]',box).onclick=()=>{if(confirm(`Remove ${read(box).name||'this stock'}?`)){box.remove();dirty=true;status('Unsaved changes')}};
+ if(s.ticker)refresh();
+ return box;
+}
+$('#add').onclick=()=>{$('[data-f=ticker]',addStock()).focus()};
+$('#gold').addEventListener('input',()=>render($('#gold')));
+document.addEventListener('input',()=>{dirty=true;status('Unsaved changes')});
+window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
+
+$('#save').onclick=async()=>{
+ const body={gold:read($('#gold')),stocks:$$('[data-stock]').map(read),alerts:{daily_move_percent:$('#daily').value.trim()}};
+ const btn=$('#save');btn.disabled=true;status('Saving…');
+ try{
+  const r=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(!r.ok)status('⚠ '+d.error,'err');
+  else if(d.github){dirty=false;status('✓ Saved on this PC and GitHub — used from the next check','ok')}
+  else{dirty=false;status('Saved on this PC, but GitHub was not updated: '+(d.error||'unknown error'),'err')}
+ }catch{status('⚠ Could not reach the settings program. Is its window still open?','err')}
+ btn.disabled=false;
+};
+
+(async()=>{
+ const s=await (await fetch('/api/settings')).json();
+ fill($('#gold'),s.gold);$('#daily').value=s.alerts.daily_move_percent||'2';
+ s.stocks.forEach(addStock);
+ status('Ready');
+ loadQuote($('#gold'),'GOLD','SAR');
+})();
+</script></body></html>

@@ -140,7 +140,7 @@ def analyse(asset, s):
         "lo": lo, "lo_date": s.idxmin().strftime("%Y-%m-%d"),
         "pct_rank": pct_rank, "rsi": float(r.iloc[-1]),
         "sma50": float(sma50.iloc[-1]), "sma200": float(sma200.iloc[-1]),
-        "above": above, "below": below, "above_auto": asset["above"] is None,
+        "above": above, "below": below, "band_upper": upper, "band_lower": lower, "above_auto": asset["above"] is None,
         "below_auto": asset["below"] is None,
         "score": score, "reasons": reasons, "verdict": verdict, "tone": tone, "trend": trend,
         "months": months, "pl": pl, "pl_pct": pl_pct, "value": price * asset["qty"],
