@@ -8,8 +8,12 @@ on:
       mode:
         description: "What to send"
         type: choice
-        options: [morning, test, check]
+        options: [morning, test, hello, check]
         default: morning
+      only_to:
+        description: "Optional: send only to this number (e.g. 9665XXXXXXXX)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -41,6 +45,7 @@ jobs:
           META_WA_PHONE_ID: ${{ secrets.META_WA_PHONE_ID }}
           META_WA_TO: ${{ secrets.META_WA_TO }}
           MODE: ${{ inputs.mode || 'morning' }}
+          ONLY_TO: ${{ inputs.only_to }}
         # Output is kept quiet so holdings and P/L never appear in the public log;
         # only the WhatsApp HTTP status and error type names are shown
         run: |
@@ -48,6 +53,7 @@ jobs:
           case "$MODE" in
             morning) python gold_hunt.py --morning > out.txt 2>&1 ;;
             test)    python gold_hunt.py --test > out.txt 2>&1 ;;
+            hello)   python gold_hunt.py --hello > out.txt 2>&1 ;;
             *)       python gold_hunt.py > out.txt 2>&1 ;;
           esac
           status=$?

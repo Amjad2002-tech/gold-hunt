@@ -248,6 +248,17 @@ def meta_config():
     return {"token": token, "phone_id": phone_id, "to": to} if token and phone_id and to else None
 
 
+def send_meta_hello(cfg):
+    """Delivery check with Meta's pre-approved hello_world template (works before gold_alert is approved)."""
+    for number in cfg["to"]:
+        body = {"messaging_product": "whatsapp", "to": number, "type": "template",
+                "template": {"name": "hello_world", "language": {"code": "en_US"}}}
+        r = requests.post(META_API.format(phone_id=cfg["phone_id"]), json=body, timeout=30,
+                          headers={"Authorization": "Bearer " + cfg["token"]})
+        err = "" if r.ok else " " + str(r.json().get("error", {}).get("code", ""))
+        print(f"  WhatsApp (Meta hello) -> {number[-4:].rjust(len(number), '*')}: HTTP {r.status_code}{err}")
+
+
 def send_meta(cfg, text):
     """Send through the approved template. Template values can't hold new lines or tabs,
     or more than 4 spaces in a row, so the alert is flattened into one line."""
@@ -355,6 +366,12 @@ def main():
     assets, cfg_alerts, phones = load_settings()
     if "--test" in sys.argv:
         send_whatsapp(phones, TEXT[cfg_alerts["lang"]]["test"])
+        return
+    if "--hello" in sys.argv:
+        cfg = meta_config()
+        if os.environ.get("ONLY_TO", "").strip():  # send to one number only
+            cfg["to"] = [os.environ["ONLY_TO"].strip().lstrip("+")]
+        send_meta_hello(cfg)
         return
     if "--morning" in sys.argv:
         morning_report(assets, cfg_alerts, phones, send="--no-send" not in sys.argv)
