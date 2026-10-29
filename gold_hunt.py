@@ -20,6 +20,7 @@ import yfinance as yf
 HERE = Path(__file__).resolve().parent
 SETTINGS = HERE / "settings.ini"
 STATE = HERE / "alerts_state.json"
+GOLD_REF = HERE / "gold_ref.json"  # gold price at the last "moved X SAR" alert
 DASHBOARD = HERE / "dashboard.html"
 
 USD_SAR = 3.75            # the riyal is pegged to the dollar
@@ -60,6 +61,7 @@ def load_settings():
             })
     alerts = {
         "daily_move": num("alerts", "daily_move_percent") or 2.0,
+        "move_sar": num("gold", "move_alert_sar") or 10.0,
         "lang": "ar" if cfg.get("alerts", "language", fallback="en").strip().lower() == "ar" else "en",
     }
     phones = dict(cfg.items("whatsapp")) if cfg.has_section("whatsapp") else {}
@@ -90,8 +92,47 @@ def fetch(asset):
     except Exception:
         pass
     s.attrs["price_time"] = price_time.isoformat()
+    s.attrs["source"] = "yahoo"
+    if asset["key"] == "GOLD":
+        dewan = dewan_price()
+        if dewan:
+            # Use Dewan Al Dahab's local 24K price; scale history by the same ratio so the
+            # 2-year analysis stays consistent with it (Dewan = world price + their fees)
+            s = s * (dewan / s.iloc[-1])
+            s.attrs.update(price_time=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+                           source="dewanaldahab.com")
     s.attrs["pulled_at"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     return s
+
+
+DEWAN_URL = "https://www.dewanaldahab.com/ar"
+_dewan_cache = {"t": 0.0, "price": None}
+
+
+def dewan_price():
+    """24K price (SAR/gram) shown on dewanaldahab.com, or None if it can't be read.
+    The site fills prices in live with JavaScript, so a headless browser reads it."""
+    import time
+    if time.time() - _dewan_cache["t"] < 60:  # reuse for a minute (pages ask often)
+        return _dewan_cache["price"]
+    price = None
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            page.goto(DEWAN_URL, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_function("document.querySelector('#caret24_Price')"
+                                   " && document.querySelector('#caret24_Price').getAttribute('data-price')",
+                                   timeout=45000)
+            value = float(page.get_attribute("#caret24_Price", "data-price"))
+            browser.close()
+            if 100 < value < 2000:  # sanity check against a broken page
+                price = value
+    except Exception as e:
+        print(f"Dewan price unavailable ({type(e).__name__}) - using world price")
+    _dewan_cache.update(t=time.time(), price=price)
+    return price
 
 
 def rsi(s, n=14):
@@ -210,6 +251,8 @@ TEXT = {
         "m_pl": "Your {g:,.0f} g bought at {b:,.2f}: {pl:+,.0f} SAR ({pp:+.1f}%)",
         "m_range": "2-year range {lo:,.0f} - {hi:,.0f} - today is higher than {r}% of days",
         "m_signal": "Signal: {v}",
+        "mv_title": "{a} Gold 24K moved {d:+.2f} SAR",
+        "mv_line": "From {old:,.2f} to {new:,.2f} SAR/gram (dewanaldahab.com)",
     },
     "ar": {
         "title": "تنبيه Gold Hunt", "riyadh": "بتوقيت الرياض", "sep": "، ", "gold_name": "ذهب عيار 24",
@@ -232,6 +275,8 @@ TEXT = {
         "m_pl": "لديك {g:,.0f} جرام بسعر شراء {b:,.2f}: {pl:+,.0f} ريال ({pp:+.1f}%)",
         "m_range": "نطاق السنتين {lo:,.0f} - {hi:,.0f} - السعر اليوم أعلى من {r}% من الأيام",
         "m_signal": "الإشارة: {v}",
+        "mv_title": "{a} سعر ذهب عيار 24 تغيّر {d:+.2f} ريال",
+        "mv_line": "من {old:,.2f} إلى {new:,.2f} ريال/جرام (ديوان الذهب)",
     },
 }
 
@@ -332,6 +377,38 @@ def dispatch(results, cfg_alerts, phones, send=True):
         STATE.write_text(json.dumps(state))
 
 
+def watch_gold(assets, cfg_alerts, phones, send=True):
+    """Gold-only check: alert when the price has moved move_sar (default 10 SAR) up or down
+    since the last alert. The first run only remembers the price."""
+    T = TEXT[cfg_alerts["lang"]]
+    gold = next(a for a in assets if a["key"] == "GOLD")
+    a = analyse(gold, fetch(gold))
+    price, step = a["price"], cfg_alerts["move_sar"]
+    try:
+        ref = json.loads(GOLD_REF.read_text())["price"]
+    except Exception:
+        ref = None
+    if ref is None:
+        GOLD_REF.write_text(json.dumps({"price": price}))
+        print(f"Gold reference set to {price:.2f}")
+        return
+    diff = price - ref
+    print(f"Gold {price:.2f} vs reference {ref:.2f} ({diff:+.2f}, alert at ±{step:g})")
+    if abs(diff) < step:
+        return
+    lines = [T["mv_title"].format(a="📈" if diff > 0 else "📉", d=diff),
+             T["mv_line"].format(old=ref, new=price)]
+    if a["pl"] is not None:
+        lines.append(T["m_pl"].format(g=a["qty"], b=a["buy"], pl=a["pl"], pp=a["pl_pct"]))
+    lines.append(f"🕒 {dt.datetime.now(RIYADH).strftime('%Y-%m-%d %H:%M')} ({T['riyadh']})")
+    text = "\n".join(lines)
+    print(text)
+    if not send:
+        return
+    if send_whatsapp(phones, text):  # only move the reference once the alert went out
+        GOLD_REF.write_text(json.dumps({"price": price}))
+
+
 def morning_report(assets, cfg_alerts, phones, send=True):
     """Daily gold-only summary (sent by the 8:00 AM Riyadh schedule)."""
     T = TEXT[cfg_alerts["lang"]]
@@ -372,6 +449,9 @@ def main():
         if os.environ.get("ONLY_TO", "").strip():  # send to one number only
             cfg["to"] = [os.environ["ONLY_TO"].strip().lstrip("+")]
         send_meta_hello(cfg)
+        return
+    if "--watch" in sys.argv:
+        watch_gold(assets, cfg_alerts, phones, send="--no-send" not in sys.argv)
         return
     if "--morning" in sys.argv:
         morning_report(assets, cfg_alerts, phones, send="--no-send" not in sys.argv)

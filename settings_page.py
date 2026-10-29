@@ -32,7 +32,7 @@ def read_settings():
     cfg = configparser.ConfigParser(inline_comment_prefixes=("#",))
     cfg.optionxform = str
     cfg.read(SETTINGS, encoding="utf-8")
-    gold = {k: cfg.get("gold", k, fallback="") for k in ["grams", "buy_price", "alert_above", "alert_below"]}
+    gold = {k: cfg.get("gold", k, fallback="") for k in ["grams", "buy_price", "alert_above", "alert_below", "move_alert_sar"]}
     stocks = [{"ticker": sec.split(":", 1)[1], **{k: cfg.get(sec, k, fallback="") for k in STOCK_KEYS}}
               for sec in cfg.sections() if sec.startswith("stock:")]
     alerts = {"daily_move_percent": cfg.get("alerts", "daily_move_percent", fallback="2"),
@@ -62,7 +62,8 @@ def clean(data):
     gold = {"grams": number(g.get("grams", ""), "Gold grams", True),
             "buy_price": number(g.get("buy_price", ""), "Gold buy price", True),
             "alert_above": number(g.get("alert_above", ""), "Gold alert above"),
-            "alert_below": number(g.get("alert_below", ""), "Gold alert below")}
+            "alert_below": number(g.get("alert_below", ""), "Gold alert below"),
+            "move_alert_sar": number(g.get("move_alert_sar", "10"), "Gold move alert (SAR)") or "10"}
     stocks, seen = [], set()
     for s in data.get("stocks", []):
         ticker = str(s.get("ticker", "")).strip().upper()

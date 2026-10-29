@@ -3,12 +3,13 @@ name: Gold Hunt alerts
 on:
   schedule:
     - cron: "0 5 * * *"       # every day 05:00 UTC = 08:00 AM Riyadh: morning gold report
+    - cron: "*/10 * * * *"    # every 10 minutes: alert if gold moved 10 SAR (dewanaldahab.com)
   workflow_dispatch:          # "Run workflow" button
     inputs:
       mode:
         description: "What to send"
         type: choice
-        options: [morning, test, hello, check]
+        options: [morning, watch, test, hello, check]
         default: morning
       only_to:
         description: "Optional: send only to this number (e.g. 9665XXXXXXXX)"
@@ -31,10 +32,18 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
+      # Headless browser to read dewanaldahab.com (cached between runs)
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-v1
+      - run: python -m playwright install --with-deps chromium
       # Remember which alerts were already sent today (kept private in the Actions cache)
       - uses: actions/cache/restore@v4
         with:
-          path: alerts_state.json
+          path: |
+            alerts_state.json
+            gold_ref.json
           key: alert-state-${{ github.run_id }}
           restore-keys: alert-state-
       - name: Send WhatsApp
@@ -44,7 +53,7 @@ jobs:
           META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
           META_WA_PHONE_ID: ${{ secrets.META_WA_PHONE_ID }}
           META_WA_TO: ${{ secrets.META_WA_TO }}
-          MODE: ${{ inputs.mode || 'morning' }}
+          MODE: ${{ inputs.mode || (github.event.schedule == '0 5 * * *' && 'morning') || 'watch' }}
           ONLY_TO: ${{ inputs.only_to }}
         # Output is kept quiet so holdings and P/L never appear in the public log;
         # only the WhatsApp HTTP status and error type names are shown
@@ -54,13 +63,16 @@ jobs:
             morning) python gold_hunt.py --morning > out.txt 2>&1 ;;
             test)    python gold_hunt.py --test > out.txt 2>&1 ;;
             hello)   python gold_hunt.py --hello > out.txt 2>&1 ;;
+            watch)   python gold_hunt.py --watch > out.txt 2>&1 ;;
             *)       python gold_hunt.py > out.txt 2>&1 ;;
           esac
           status=$?
-          grep -oE "HTTP [0-9]+( [0-9]+)?|FAILED \([A-Za-z]+\)|FAILED_ASSET [A-Za-z]+|^[A-Za-z.]+(Error|Exception)" out.txt | sort | uniq -c
+          grep -oE "Dewan price unavailable \([A-Za-z]+\)|HTTP [0-9]+( [0-9]+)?|FAILED \([A-Za-z]+\)|FAILED_ASSET [A-Za-z]+|^[A-Za-z.]+(Error|Exception)" out.txt | sort | uniq -c
           exit $status
       - uses: actions/cache/save@v4
         if: always()
         with:
-          path: alerts_state.json
+          path: |
+            alerts_state.json
+            gold_ref.json
           key: alert-state-${{ github.run_id }}
