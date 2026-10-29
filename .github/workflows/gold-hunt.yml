@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/30 * * * *"   # every 30 minutes (UTC), 24/7
   workflow_dispatch:          # "Run workflow" button for a manual check
+    inputs:
+      test:
+        description: "Only send a WhatsApp test message"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,9 +36,17 @@ jobs:
         env:
           GOLD_HUNT_SETTINGS: ${{ secrets.GOLD_HUNT_SETTINGS }}
           WHATSAPP_RECIPIENTS: ${{ secrets.WHATSAPP_RECIPIENTS }}
+          META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
+          META_WA_PHONE_ID: ${{ secrets.META_WA_PHONE_ID }}
+          META_WA_TO: ${{ secrets.META_WA_TO }}
+          TEST_ONLY: ${{ inputs.test }}
         # Output is kept quiet so holdings and P/L never appear in the public log;
         # on failure only error type names are shown (no names, numbers or prices)
         run: |
+          if [ "$TEST_ONLY" = "true" ]; then
+            python gold_hunt.py --test | grep -oE "HTTP [0-9]+( [0-9]+)?|FAILED \([A-Za-z]+\)"
+            exit 0
+          fi
           python gold_hunt.py > out.txt 2>&1 && exit 0
           grep -oE "FAILED_ASSET [A-Za-z]+|^[A-Za-z.]+(Error|Exception)" out.txt | sort | uniq -c
           exit 1

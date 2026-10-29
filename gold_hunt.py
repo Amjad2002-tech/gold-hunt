@@ -226,8 +226,46 @@ TEXT = {
 }
 
 
+META_API = "https://graph.facebook.com/v25.0/{phone_id}/messages"
+META_TEMPLATE = "gold_alert"  # approved Utility template: "... Gold Hunt: {{1}}. ..."
+
+
+def meta_config():
+    """WhatsApp Cloud API (Meta) settings from GitHub secrets / environment, or None."""
+    token = os.environ.get("META_WA_TOKEN", "").strip()
+    phone_id = os.environ.get("META_WA_PHONE_ID", "").strip()
+    to = [n.strip().lstrip("+") for n in os.environ.get("META_WA_TO", "").replace("\n", ",").split(",") if n.strip()]
+    return {"token": token, "phone_id": phone_id, "to": to} if token and phone_id and to else None
+
+
+def send_meta(cfg, text):
+    """Send through the approved template. Template values can't hold new lines or tabs,
+    or more than 4 spaces in a row, so the alert is flattened into one line."""
+    value = " | ".join(part.strip() for part in text.split("\n") if part.strip())
+    value = " ".join(value.split())[:1000]
+    delivered = False
+    for number in cfg["to"]:
+        body = {"messaging_product": "whatsapp", "to": number, "type": "template",
+                "template": {"name": META_TEMPLATE, "language": {"code": "ar"},  # the template exists in Arabic only
+                             "components": [{"type": "body", "parameters": [{"type": "text", "text": value}]}]}}
+        masked = number[-4:].rjust(len(number), "*")
+        try:
+            r = requests.post(META_API.format(phone_id=cfg["phone_id"]), json=body, timeout=30,
+                              headers={"Authorization": "Bearer " + cfg["token"]})
+            delivered |= r.ok
+            err = "" if r.ok else " " + str(r.json().get("error", {}).get("code", ""))
+            print(f"  WhatsApp (Meta) -> {masked}: HTTP {r.status_code}{err}")
+        except Exception as e:
+            print(f"  WhatsApp (Meta) -> {masked}: FAILED ({type(e).__name__})")
+    return delivered
+
+
 def send_whatsapp(phones, text):
-    """Send to every number; return True if at least one message was delivered."""
+    """Send to every recipient; return True if at least one message was delivered.
+    Uses Meta's WhatsApp Cloud API when configured, otherwise CallMeBot numbers."""
+    meta = meta_config()
+    if meta:
+        return send_meta(meta, text)
     delivered = False
     for phone, key in phones.items():
         url = ("https://api.callmebot.com/whatsapp.php?phone=" + phone.strip()
@@ -264,7 +302,7 @@ def dispatch(results, cfg_alerts, phones, send=True):
     print(text)
     if not send:
         return
-    if not phones:
+    if not phones and not meta_config():
         print("  (no WhatsApp numbers yet)")
         return
     # Only remember alerts that actually went out, so failed ones retry next check
