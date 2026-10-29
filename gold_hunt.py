@@ -205,6 +205,11 @@ TEXT = {
         "verdict_none": "No sell signal - trend not stretched",
         "trend_up": "Uptrend", "trend_down": "Downtrend", "trend_side": "Sideways",
         "test": "✅ Gold Hunt test message - alerts are working.",
+        "morning": "☀️ Good morning - gold report {d}",
+        "m_price": "Gold 24K now {p:,.2f} SAR/gram ({c:+.1f}% since yesterday)",
+        "m_pl": "Your {g:,.0f} g bought at {b:,.2f}: {pl:+,.0f} SAR ({pp:+.1f}%)",
+        "m_range": "2-year range {lo:,.0f} - {hi:,.0f} - today is higher than {r}% of days",
+        "m_signal": "Signal: {v}",
     },
     "ar": {
         "title": "تنبيه Gold Hunt", "riyadh": "بتوقيت الرياض", "sep": "، ", "gold_name": "ذهب عيار 24",
@@ -222,6 +227,11 @@ TEXT = {
         "verdict_none": "لا توجد إشارة بيع",
         "trend_up": "اتجاه صاعد", "trend_down": "اتجاه هابط", "trend_side": "اتجاه عرضي",
         "test": "✅ رسالة تجريبية من Gold Hunt - التنبيهات تعمل.",
+        "morning": "☀️ صباح الخير - تقرير الذهب {d}",
+        "m_price": "ذهب عيار 24 الآن {p:,.2f} ريال/جرام ({c:+.1f}% منذ أمس)",
+        "m_pl": "لديك {g:,.0f} جرام بسعر شراء {b:,.2f}: {pl:+,.0f} ريال ({pp:+.1f}%)",
+        "m_range": "نطاق السنتين {lo:,.0f} - {hi:,.0f} - السعر اليوم أعلى من {r}% من الأيام",
+        "m_signal": "الإشارة: {v}",
     },
 }
 
@@ -311,6 +321,24 @@ def dispatch(results, cfg_alerts, phones, send=True):
         STATE.write_text(json.dumps(state))
 
 
+def morning_report(assets, cfg_alerts, phones, send=True):
+    """Daily gold-only summary (sent by the 8:00 AM Riyadh schedule)."""
+    T = TEXT[cfg_alerts["lang"]]
+    gold = next(a for a in assets if a["key"] == "GOLD")
+    a = analyse(gold, fetch(gold))
+    lines = [T["morning"].format(d=dt.datetime.now(RIYADH).strftime("%Y-%m-%d")),
+             T["m_price"].format(p=a["price"], c=a["change_pct"])]
+    if a["pl"] is not None:
+        lines.append(T["m_pl"].format(g=a["qty"], b=a["buy"], pl=a["pl"], pp=a["pl_pct"]))
+    lines.append(T["m_range"].format(lo=a["lo"], hi=a["hi"], r=round(a["pct_rank"])))
+    reasons = T["sep"].join(T["reason_" + k].format(v=v) for k, v in a["reason_codes"])
+    lines.append(T["m_signal"].format(v=T["verdict_" + a["verdict_code"]]) + (f" ({reasons})" if reasons else ""))
+    text = "\n".join(lines)
+    print(text)
+    if send:
+        send_whatsapp(phones, text)
+
+
 # ---------------------------------------------------------------- dashboard
 def build_dashboard(results):
     data = json.dumps(results).replace("</", "<\\/")  # keep user text from closing the <script>
@@ -327,6 +355,9 @@ def main():
     assets, cfg_alerts, phones = load_settings()
     if "--test" in sys.argv:
         send_whatsapp(phones, TEXT[cfg_alerts["lang"]]["test"])
+        return
+    if "--morning" in sys.argv:
+        morning_report(assets, cfg_alerts, phones, send="--no-send" not in sys.argv)
         return
     results, failed = [], 0
     for a in assets:
