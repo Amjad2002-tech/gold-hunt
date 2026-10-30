@@ -53,6 +53,7 @@ jobs:
           META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
           META_WA_PHONE_ID: ${{ secrets.META_WA_PHONE_ID }}
           META_WA_TO: ${{ secrets.META_WA_TO }}
+          META_WA_TEMPLATE: ${{ secrets.META_WA_TEMPLATE }}
           MODE: ${{ inputs.mode || (github.event.schedule == '0 5 * * *' && 'morning') || 'watch' }}
           ONLY_TO: ${{ inputs.only_to }}
         # Output is kept quiet so holdings and P/L never appear in the public log;

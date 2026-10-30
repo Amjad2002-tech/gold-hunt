@@ -282,7 +282,8 @@ TEXT = {
 
 
 META_API = "https://graph.facebook.com/v25.0/{phone_id}/messages"
-META_TEMPLATE = "gold_alert"  # approved Utility template: "... Gold Hunt: {{1}}. ..."
+# Approved Utility template with one {{1}} placeholder; switch with the META_WA_TEMPLATE secret
+META_TEMPLATE = os.environ.get("META_WA_TEMPLATE", "").strip() or "gold_alert"
 
 
 def meta_config():
