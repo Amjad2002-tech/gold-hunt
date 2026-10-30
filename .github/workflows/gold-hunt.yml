@@ -1,10 +1,10 @@
 name: Gold Hunt alerts
 
+# Started on time by cron-job.org (GitHub's own schedule runs hours late / skips runs):
+#   "Gold Hunt - morning"       08:00 Asia/Riyadh daily  -> mode=morning
+#   "Gold Hunt - watch 10 SAR"  every 10 minutes          -> mode=watch
 on:
-  schedule:
-    - cron: "0 5 * * *"       # every day 05:00 UTC = 08:00 AM Riyadh: morning gold report
-    - cron: "*/10 * * * *"    # every 10 minutes: alert if gold moved 10 SAR (dewanaldahab.com)
-  workflow_dispatch:          # "Run workflow" button
+  workflow_dispatch:          # started by cron-job.org, or the "Run workflow" button
     inputs:
       mode:
         description: "What to send"
@@ -54,7 +54,7 @@ jobs:
           META_WA_PHONE_ID: ${{ secrets.META_WA_PHONE_ID }}
           META_WA_TO: ${{ secrets.META_WA_TO }}
           META_WA_TEMPLATE: ${{ secrets.META_WA_TEMPLATE }}
-          MODE: ${{ inputs.mode || (github.event.schedule == '0 5 * * *' && 'morning') || 'watch' }}
+          MODE: ${{ inputs.mode || 'watch' }}
           ONLY_TO: ${{ inputs.only_to }}
         # Output is kept quiet so holdings and P/L never appear in the public log;
         # only the WhatsApp HTTP status and error type names are shown
