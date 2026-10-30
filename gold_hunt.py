@@ -282,8 +282,11 @@ TEXT = {
 
 
 META_API = "https://graph.facebook.com/v25.0/{phone_id}/messages"
-# Approved Utility template with one {{1}} placeholder; switch with the META_WA_TEMPLATE secret
+# Utility template with one {{1}} placeholder; switch with the META_WA_TEMPLATE secret.
+# If it isn't approved yet (Meta error 132001), the older approved one is used instead.
 META_TEMPLATE = os.environ.get("META_WA_TEMPLATE", "").strip() or "gold_alert"
+META_FALLBACK_TEMPLATE = "gold_alert"
+TEMPLATE_NOT_FOUND = 132001
 
 
 def meta_config():
@@ -310,18 +313,24 @@ def send_meta(cfg, text):
     or more than 4 spaces in a row, so the alert is flattened into one line."""
     value = " | ".join(part.strip() for part in text.split("\n") if part.strip())
     value = " ".join(value.split())[:1000]
+    def post(number, template):
+        body = {"messaging_product": "whatsapp", "to": number, "type": "template",
+                "template": {"name": template, "language": {"code": "ar"},  # templates exist in Arabic only
+                             "components": [{"type": "body", "parameters": [{"type": "text", "text": value}]}]}}
+        r = requests.post(META_API.format(phone_id=cfg["phone_id"]), json=body, timeout=30,
+                          headers={"Authorization": "Bearer " + cfg["token"]})
+        code = None if r.ok else r.json().get("error", {}).get("code")
+        return r, code
+
     delivered = False
     for number in cfg["to"]:
-        body = {"messaging_product": "whatsapp", "to": number, "type": "template",
-                "template": {"name": META_TEMPLATE, "language": {"code": "ar"},  # the template exists in Arabic only
-                             "components": [{"type": "body", "parameters": [{"type": "text", "text": value}]}]}}
         masked = number[-4:].rjust(len(number), "*")
         try:
-            r = requests.post(META_API.format(phone_id=cfg["phone_id"]), json=body, timeout=30,
-                              headers={"Authorization": "Bearer " + cfg["token"]})
+            r, code = post(number, META_TEMPLATE)
+            if code == TEMPLATE_NOT_FOUND and META_TEMPLATE != META_FALLBACK_TEMPLATE:
+                r, code = post(number, META_FALLBACK_TEMPLATE)
             delivered |= r.ok
-            err = "" if r.ok else " " + str(r.json().get("error", {}).get("code", ""))
-            print(f"  WhatsApp (Meta) -> {masked}: HTTP {r.status_code}{err}")
+            print(f"  WhatsApp (Meta) -> {masked}: HTTP {r.status_code}{'' if r.ok else f' {code}'}")
         except Exception as e:
             print(f"  WhatsApp (Meta) -> {masked}: FAILED ({type(e).__name__})")
     return delivered
