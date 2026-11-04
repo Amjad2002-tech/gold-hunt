@@ -9,7 +9,7 @@ on:
       mode:
         description: "What to send"
         type: choice
-        options: [morning, watch, test, hello, check]
+        options: [morning, watch, test, hello, check, create_template]
         default: morning
       only_to:
         description: "Optional: send only to this number (e.g. 9665XXXXXXXX)"
@@ -54,6 +54,7 @@ jobs:
           META_WA_PHONE_ID: ${{ secrets.META_WA_PHONE_ID }}
           META_WA_TO: ${{ secrets.META_WA_TO }}
           META_WA_TEMPLATE: ${{ secrets.META_WA_TEMPLATE }}
+          META_WA_WABA_ID: ${{ secrets.META_WA_WABA_ID }}
           MODE: ${{ inputs.mode || 'watch' }}
           ONLY_TO: ${{ inputs.only_to }}
         # Output is kept quiet so holdings and P/L never appear in the public log;
@@ -65,10 +66,11 @@ jobs:
             test)    python gold_hunt.py --test > out.txt 2>&1 ;;
             hello)   python gold_hunt.py --hello > out.txt 2>&1 ;;
             watch)   python gold_hunt.py --watch > out.txt 2>&1 ;;
+            create_template) python gold_hunt.py --create-template > out.txt 2>&1 ;;
             *)       python gold_hunt.py > out.txt 2>&1 ;;
           esac
           status=$?
-          grep -oE "Dewan price unavailable \([A-Za-z]+\)|HTTP [0-9]+( [0-9]+)?|FAILED \([A-Za-z]+\)|FAILED_ASSET [A-Za-z]+|^[A-Za-z.]+(Error|Exception)" out.txt | sort | uniq -c
+          grep -oE "TEMPLATE_[A-Z]+ .*|META_ERROR .*|META_MSG .*|Dewan price unavailable \([A-Za-z]+\)|HTTP [0-9]+( [0-9]+)?|FAILED \([A-Za-z]+\)|FAILED_ASSET [A-Za-z]+|^[A-Za-z.]+(Error|Exception)" out.txt | sort | uniq -c
           exit $status
       - uses: actions/cache/save@v4
         if: always()

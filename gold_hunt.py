@@ -5,6 +5,7 @@ Usage:
     python gold_hunt.py --no-send    # same, but only print alerts (no WhatsApp)
     python gold_hunt.py --test       # send a test WhatsApp message (with chart) to everyone
     python gold_hunt.py --chart      # save the gold chart to chart.png (nothing is sent)
+    python gold_hunt.py --create-template  # one-time: create the gold_report_chart template on Meta
 """
 import configparser
 import datetime as dt
@@ -289,6 +290,12 @@ META_MEDIA = "https://graph.facebook.com/v25.0/{phone_id}/media"
 META_TEMPLATE = os.environ.get("META_WA_TEMPLATE", "").strip() or "gold_report"
 META_FALLBACK_TEMPLATE = "gold_alert"
 TEMPLATE_NOT_FOUND = 132001
+# Same text as gold_report plus an image header for the chart. Tried first whenever there is a
+# chart; until Meta approves it (132001) the templates above are used. Created by --create-template.
+META_CHART_TEMPLATE = "gold_report_chart"
+CHART_TEMPLATE_BODY = ("تحديث تنبيه سعر الذهب الذي قمت بإعداده في حسابك على Gold Hunt: {{1}}"
+                       " - يمكنك تعديل مستويات التنبيه من الإعدادات.")
+CHART_TEMPLATE_EXAMPLE = "ذهب عيار 24 الآن 395.64 ريال/جرام (+0.4% منذ أمس)"
 
 
 # ---------------------------------------------------------------- chart
@@ -405,14 +412,15 @@ def send_meta(cfg, text, chart=None):
     for number in cfg["to"]:
         masked = number[-4:].rjust(len(number), "*")
         try:
-            template = META_TEMPLATE
-            r, code = post(number, template, media_id)
-            if code == TEMPLATE_NOT_FOUND and template != META_FALLBACK_TEMPLATE:
-                template = META_FALLBACK_TEMPLATE
+            templates = ([META_CHART_TEMPLATE] if media_id else []) + [META_TEMPLATE, META_FALLBACK_TEMPLATE]
+            for template in dict.fromkeys(templates):  # in order, without repeats
                 r, code = post(number, template, media_id)
+                # Try the next one if this template isn't approved yet, or the chart template failed
+                if r.ok or not (code == TEMPLATE_NOT_FOUND or template == META_CHART_TEMPLATE):
+                    break
             # Rejected with the image (template has no image header, or Meta reports it as a
             # parameter problem such as 132018): send the text alone and the chart separately
-            separate = bool(media_id) and not r.ok
+            separate = bool(media_id) and not r.ok and template != META_CHART_TEMPLATE
             if separate:
                 r, code = post(number, template, None)
             delivered |= r.ok
@@ -426,6 +434,79 @@ def send_meta(cfg, text, chart=None):
         except Exception as e:
             print(f"  WhatsApp (Meta) -> {masked}: FAILED ({type(e).__name__})")
     return delivered
+
+
+def create_chart_template(cfg, sample_png):
+    """One-time setup: create the gold_report_chart template (Arabic, Utility, image header)
+    on the WhatsApp Business Account, or report its status if it already exists.
+    Prints only status lines - no token, numbers or prices."""
+    graph = "https://graph.facebook.com/v25.0/"
+    auth = {"Authorization": "Bearer " + cfg["token"]}
+
+    def show_error(r, step):
+        e = r.json().get("error", {}) if r.content else {}
+        print(f"META_ERROR {step}: HTTP {r.status_code} code {e.get('code')} subcode {e.get('error_subcode')}")
+        msg = " ".join(str(e.get("error_user_msg") or e.get("message") or "").split())[:300]
+        if msg:
+            print(f"META_MSG {msg}")
+
+    # Business account and app come from the token itself (or the META_WA_WABA_ID secret)
+    r = requests.get(graph + "debug_token", timeout=30,
+                     params={"input_token": cfg["token"], "access_token": cfg["token"]})
+    if not r.ok:
+        show_error(r, "debug_token")
+        return False
+    data = r.json().get("data", {})
+    app_id = data.get("app_id")
+    waba = os.environ.get("META_WA_WABA_ID", "").strip()
+    if not waba:
+        for scope in data.get("granular_scopes", []):
+            if scope.get("scope") == "whatsapp_business_management" and scope.get("target_ids"):
+                waba = scope["target_ids"][0]
+    if not waba:
+        print("META_ERROR token has no whatsapp_business_management access to a business account"
+              " (add it to the token, or set the META_WA_WABA_ID secret)")
+        return False
+
+    r = requests.get(graph + f"{waba}/message_templates", headers=auth, timeout=30,
+                     params={"name": META_CHART_TEMPLATE, "fields": "name,status,category,language"})
+    if not r.ok:
+        show_error(r, "list_templates")
+        return False
+    for t in r.json().get("data", []):
+        if t.get("name") == META_CHART_TEMPLATE:
+            print(f"TEMPLATE_EXISTS {t.get('status')} {t.get('category')} {t.get('language')}")
+            return True
+
+    # The sample header image has to be uploaded first (Resumable Upload API -> handle)
+    r = requests.post(graph + f"{app_id}/uploads", headers=auth, timeout=30,
+                      params={"file_name": "gold_chart.png", "file_length": len(sample_png),
+                              "file_type": "image/png"})
+    if not r.ok:
+        show_error(r, "upload_session")
+        return False
+    r = requests.post(graph + r.json()["id"], data=sample_png, timeout=60,
+                      headers={"Authorization": "OAuth " + cfg["token"], "file_offset": "0"})
+    if not r.ok:
+        show_error(r, "upload_image")
+        return False
+    handle = r.json()["h"]
+
+    body = {
+        "name": META_CHART_TEMPLATE, "language": "ar", "category": "UTILITY",
+        "components": [
+            {"type": "HEADER", "format": "IMAGE", "example": {"header_handle": [handle]}},
+            {"type": "BODY", "text": CHART_TEMPLATE_BODY,
+             "example": {"body_text": [[CHART_TEMPLATE_EXAMPLE]]}},
+        ],
+    }
+    r = requests.post(graph + f"{waba}/message_templates", headers=auth, json=body, timeout=30)
+    if not r.ok:
+        show_error(r, "create_template")
+        return False
+    j = r.json()
+    print(f"TEMPLATE_CREATED {j.get('status')} {j.get('category')}")
+    return True
 
 
 def send_whatsapp(phones, text, chart=None):
@@ -563,6 +644,15 @@ def main():
         if png:
             (HERE / "chart.png").write_bytes(png)
             print(f"Chart: {HERE / 'chart.png'}")
+        return
+    if "--create-template" in sys.argv:
+        cfg = meta_config()
+        if not cfg:
+            print("Meta WhatsApp is not configured (META_WA_TOKEN / META_WA_PHONE_ID / META_WA_TO)")
+            sys.exit(1)
+        gold = next(a for a in assets if a["key"] == "GOLD")
+        if not create_chart_template(cfg, price_chart(analyse(gold, fetch(gold)))):
+            sys.exit(1)
         return
     if "--hello" in sys.argv:
         cfg = meta_config()
