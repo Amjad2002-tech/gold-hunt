@@ -359,10 +359,13 @@ def upload_chart(cfg, png):
 
 
 def meta_config():
-    """WhatsApp Cloud API (Meta) settings from GitHub secrets / environment, or None."""
+    """WhatsApp Cloud API (Meta) settings from GitHub secrets / environment, or None.
+    ONLY_TO (the "only to" box on the Run workflow form) sends to that one number instead of everyone."""
     token = os.environ.get("META_WA_TOKEN", "").strip()
     phone_id = os.environ.get("META_WA_PHONE_ID", "").strip()
     to = [n.strip().lstrip("+") for n in os.environ.get("META_WA_TO", "").replace("\n", ",").split(",") if n.strip()]
+    if os.environ.get("ONLY_TO", "").strip():
+        to = [os.environ["ONLY_TO"].strip().lstrip("+")]
     return {"token": token, "phone_id": phone_id, "to": to} if token and phone_id and to else None
 
 
@@ -563,8 +566,9 @@ def main():
         return
     if "--hello" in sys.argv:
         cfg = meta_config()
-        if os.environ.get("ONLY_TO", "").strip():  # send to one number only
-            cfg["to"] = [os.environ["ONLY_TO"].strip().lstrip("+")]
+        if not cfg:
+            print("Meta WhatsApp is not configured (META_WA_TOKEN / META_WA_PHONE_ID / META_WA_TO)")
+            sys.exit(1)
         send_meta_hello(cfg)
         return
     if "--watch" in sys.argv:
