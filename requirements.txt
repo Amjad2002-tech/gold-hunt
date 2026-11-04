@@ -2,3 +2,4 @@ yfinance>=0.2.50
 pandas
 requests
 playwright
+matplotlib

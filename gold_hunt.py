@@ -3,7 +3,8 @@
 Usage:
     python gold_hunt.py              # analyse, rebuild dashboard, send alerts if triggered
     python gold_hunt.py --no-send    # same, but only print alerts (no WhatsApp)
-    python gold_hunt.py --test       # send a test WhatsApp message to everyone
+    python gold_hunt.py --test       # send a test WhatsApp message (with chart) to everyone
+    python gold_hunt.py --chart      # save the gold chart to chart.png (nothing is sent)
 """
 import configparser
 import datetime as dt
@@ -282,11 +283,79 @@ TEXT = {
 
 
 META_API = "https://graph.facebook.com/v25.0/{phone_id}/messages"
-# Utility template with one {{1}} placeholder; switch with the META_WA_TEMPLATE secret.
-# If it isn't approved yet (Meta error 132001), the older approved one is used instead.
-META_TEMPLATE = os.environ.get("META_WA_TEMPLATE", "").strip() or "gold_alert"
+META_MEDIA = "https://graph.facebook.com/v25.0/{phone_id}/media"
+# The new gold_report template (one {{1}} placeholder) is sent by default; the META_WA_TEMPLATE
+# secret can name another one. If it isn't approved yet (Meta error 132001), gold_alert is used.
+META_TEMPLATE = os.environ.get("META_WA_TEMPLATE", "").strip() or "gold_report"
 META_FALLBACK_TEMPLATE = "gold_alert"
 TEMPLATE_NOT_FOUND = 132001
+# The template has no image header: send it as text only, then the chart as its own image
+NO_IMAGE_HEADER = {132000, 132012}
+
+
+# ---------------------------------------------------------------- chart
+def price_chart(a, days=30, ref=None):
+    """PNG chart (bytes) of the last `days` closing prices, with the buy price and the
+    last alert price marked. None if matplotlib is missing or there's too little data."""
+    try:
+        import io
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+    except ImportError:
+        print("Chart skipped (matplotlib not installed)")
+        return None
+    dates = pd.to_datetime(a["series"]["dates"])
+    keep = dates >= dates[-1] - pd.Timedelta(days=days)  # calendar days, not trading days
+    dates, close = dates[keep], [c for c, k in zip(a["series"]["close"], keep) if k]
+    if len(close) < 2:
+        return None
+    up = close[-1] >= close[0]
+    color = "#1f9d55" if up else "#d64545"
+    fig, ax = plt.subplots(figsize=(8, 4.2), dpi=150)
+    fig.patch.set_facecolor("#ffffff")
+    ax.plot(dates, close, color=color, linewidth=2.2)
+    ax.fill_between(dates, close, min(close), color=color, alpha=0.10)
+    ax.scatter([dates[-1]], [close[-1]], color=color, s=40, zorder=3)
+    ax.annotate(f"{close[-1]:,.2f}", (dates[-1], close[-1]), textcoords="offset points",
+                xytext=(-8, 12), ha="right", fontsize=11, fontweight="bold", color=color)
+    lo, hi = min(close), max(close)
+    for level, label, style in ((a.get("buy"), "Buy", "--"), (ref, "Last alert", ":")):
+        if level and lo - (hi - lo) * 0.6 <= level <= hi + (hi - lo) * 0.6:  # only if near the chart
+            ax.axhline(level, color="#6b6b6b", linestyle=style, linewidth=1)
+            ax.annotate(f"{label} {level:,.2f}", (dates[0], level), textcoords="offset points",
+                        xytext=(2, 4), fontsize=8, color="#6b6b6b")
+    change = (close[-1] / close[0] - 1) * 100
+    unit = "SAR/gram" if a["key"] == "GOLD" else a["unit"]
+    name = "Gold 24K" if a["key"] == "GOLD" else a["name"]
+    ax.set_title(f"{name} - last {days} days  ({change:+.1f}%)", fontsize=13, loc="left")
+    ax.set_ylabel(unit)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
+    ax.grid(axis="y", alpha=0.25)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    fig.text(0.99, 0.01, "Gold Hunt - " + dt.datetime.now(RIYADH).strftime("%Y-%m-%d %H:%M") + " Riyadh",
+             ha="right", fontsize=7, color="#8a8a8a")
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png")
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def upload_chart(cfg, png):
+    """Upload the chart to Meta once; returns its media id (or None)."""
+    try:
+        r = requests.post(META_MEDIA.format(phone_id=cfg["phone_id"]), timeout=60,
+                          headers={"Authorization": "Bearer " + cfg["token"]},
+                          data={"messaging_product": "whatsapp", "type": "image/png"},
+                          files={"file": ("gold_chart.png", png, "image/png")})
+        print(f"  Chart upload: HTTP {r.status_code}")
+        return r.json().get("id") if r.ok else None
+    except Exception as e:
+        print(f"  Chart upload: FAILED ({type(e).__name__})")
+        return None
 
 
 def meta_config():
@@ -308,40 +377,61 @@ def send_meta_hello(cfg):
         print(f"  WhatsApp (Meta hello) -> {number[-4:].rjust(len(number), '*')}: HTTP {r.status_code}{err}")
 
 
-def send_meta(cfg, text):
+def send_meta(cfg, text, chart=None):
     """Send through the approved template. Template values can't hold new lines or tabs,
-    or more than 4 spaces in a row, so the alert is flattened into one line."""
+    or more than 4 spaces in a row, so the alert is flattened into one line.
+    A chart (PNG bytes) goes in the template's image header; if the template has none,
+    it follows as a separate image message."""
     value = " | ".join(part.strip() for part in text.split("\n") if part.strip())
     value = " ".join(value.split())[:1000]
-    def post(number, template):
-        body = {"messaging_product": "whatsapp", "to": number, "type": "template",
-                "template": {"name": template, "language": {"code": "ar"},  # templates exist in Arabic only
-                             "components": [{"type": "body", "parameters": [{"type": "text", "text": value}]}]}}
+    media_id = upload_chart(cfg, chart) if chart else None
+
+    def call(body):
         r = requests.post(META_API.format(phone_id=cfg["phone_id"]), json=body, timeout=30,
                           headers={"Authorization": "Bearer " + cfg["token"]})
         code = None if r.ok else r.json().get("error", {}).get("code")
         return r, code
 
+    def post(number, template, image):
+        components = [{"type": "body", "parameters": [{"type": "text", "text": value}]}]
+        if image:
+            components.insert(0, {"type": "header", "parameters": [{"type": "image", "image": {"id": image}}]})
+        return call({"messaging_product": "whatsapp", "to": number, "type": "template",
+                     "template": {"name": template, "language": {"code": "ar"},  # templates exist in Arabic only
+                                  "components": components}})
+
     delivered = False
     for number in cfg["to"]:
         masked = number[-4:].rjust(len(number), "*")
         try:
-            r, code = post(number, META_TEMPLATE)
-            if code == TEMPLATE_NOT_FOUND and META_TEMPLATE != META_FALLBACK_TEMPLATE:
-                r, code = post(number, META_FALLBACK_TEMPLATE)
+            template = META_TEMPLATE
+            r, code = post(number, template, media_id)
+            if code == TEMPLATE_NOT_FOUND and template != META_FALLBACK_TEMPLATE:
+                template = META_FALLBACK_TEMPLATE
+                r, code = post(number, template, media_id)
+            separate = media_id and code in NO_IMAGE_HEADER
+            if separate:
+                r, code = post(number, template, None)
             delivered |= r.ok
-            print(f"  WhatsApp (Meta) -> {masked}: HTTP {r.status_code}{'' if r.ok else f' {code}'}")
+            print(f"  WhatsApp (Meta) -> {masked}: HTTP {r.status_code}{'' if r.ok else f' {code}'}"
+                  + (" with chart" if media_id and r.ok and not separate else ""))
+            if separate and r.ok:
+                # Works when the recipient wrote to the business number in the last 24 hours
+                ri, ci = call({"messaging_product": "whatsapp", "to": number, "type": "image",
+                               "image": {"id": media_id}})
+                print(f"  Chart image -> {masked}: HTTP {ri.status_code}{'' if ri.ok else f' {ci}'}")
         except Exception as e:
             print(f"  WhatsApp (Meta) -> {masked}: FAILED ({type(e).__name__})")
     return delivered
 
 
-def send_whatsapp(phones, text):
+def send_whatsapp(phones, text, chart=None):
     """Send to every recipient; return True if at least one message was delivered.
-    Uses Meta's WhatsApp Cloud API when configured, otherwise CallMeBot numbers."""
+    Uses Meta's WhatsApp Cloud API when configured (with the chart image),
+    otherwise CallMeBot numbers (text only)."""
     meta = meta_config()
     if meta:
-        return send_meta(meta, text)
+        return send_meta(meta, text, chart)
     delivered = False
     for phone, key in phones.items():
         url = ("https://api.callmebot.com/whatsapp.php?phone=" + phone.strip()
@@ -361,7 +451,7 @@ def dispatch(results, cfg_alerts, phones, send=True):
     state = json.loads(STATE.read_text()) if STATE.exists() else {}
     state = {k: v for k, v in state.items() if v == today}  # forget older days
     T = TEXT[cfg_alerts["lang"]]
-    keys, lines = [], []
+    keys, lines, alerted = [], [], []
     for a in results:
         pl = (T["pl"].format(pl=a["pl"], c=T.get("cur_" + a["currency"], a["currency"]), pp=a["pl_pct"])
               if a["pl"] is not None else "")
@@ -370,6 +460,8 @@ def dispatch(results, cfg_alerts, phones, send=True):
             if k not in state:  # each alert only once per day
                 keys.append(k)
                 lines.append(msg + pl)
+                if a not in alerted:
+                    alerted.append(a)
     if not lines:
         print("No new alerts.")
         return
@@ -381,8 +473,10 @@ def dispatch(results, cfg_alerts, phones, send=True):
     if not phones and not meta_config():
         print("  (no WhatsApp numbers yet)")
         return
+    # Chart of gold if it triggered an alert, otherwise of the first asset that did
+    chart_of = next((a for a in alerted if a["key"] == "GOLD"), alerted[0])
     # Only remember alerts that actually went out, so failed ones retry next check
-    if send_whatsapp(phones, text):
+    if send_whatsapp(phones, text, price_chart(chart_of)):
         state.update(dict.fromkeys(keys, today))
         STATE.write_text(json.dumps(state))
 
@@ -415,7 +509,7 @@ def watch_gold(assets, cfg_alerts, phones, send=True):
     print(text)
     if not send:
         return
-    if send_whatsapp(phones, text):  # only move the reference once the alert went out
+    if send_whatsapp(phones, text, price_chart(a, ref=ref)):  # only move the reference once the alert went out
         GOLD_REF.write_text(json.dumps({"price": price}))
 
 
@@ -434,7 +528,7 @@ def morning_report(assets, cfg_alerts, phones, send=True):
     text = "\n".join(lines)
     print(text)
     if send:
-        send_whatsapp(phones, text)
+        send_whatsapp(phones, text, price_chart(a))
 
 
 # ---------------------------------------------------------------- dashboard
@@ -452,7 +546,20 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     assets, cfg_alerts, phones = load_settings()
     if "--test" in sys.argv:
-        send_whatsapp(phones, TEXT[cfg_alerts["lang"]]["test"])
+        gold = next(a for a in assets if a["key"] == "GOLD")
+        try:
+            chart = price_chart(analyse(gold, fetch(gold)))
+        except Exception as e:
+            print(f"Chart skipped ({type(e).__name__})")
+            chart = None
+        send_whatsapp(phones, TEXT[cfg_alerts["lang"]]["test"], chart)
+        return
+    if "--chart" in sys.argv:
+        gold = next(a for a in assets if a["key"] == "GOLD")
+        png = price_chart(analyse(gold, fetch(gold)))
+        if png:
+            (HERE / "chart.png").write_bytes(png)
+            print(f"Chart: {HERE / 'chart.png'}")
         return
     if "--hello" in sys.argv:
         cfg = meta_config()
