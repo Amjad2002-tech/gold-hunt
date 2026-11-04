@@ -289,8 +289,6 @@ META_MEDIA = "https://graph.facebook.com/v25.0/{phone_id}/media"
 META_TEMPLATE = os.environ.get("META_WA_TEMPLATE", "").strip() or "gold_report"
 META_FALLBACK_TEMPLATE = "gold_alert"
 TEMPLATE_NOT_FOUND = 132001
-# The template has no image header: send it as text only, then the chart as its own image
-NO_IMAGE_HEADER = {132000, 132012}
 
 
 # ---------------------------------------------------------------- chart
@@ -412,7 +410,9 @@ def send_meta(cfg, text, chart=None):
             if code == TEMPLATE_NOT_FOUND and template != META_FALLBACK_TEMPLATE:
                 template = META_FALLBACK_TEMPLATE
                 r, code = post(number, template, media_id)
-            separate = media_id and code in NO_IMAGE_HEADER
+            # Rejected with the image (template has no image header, or Meta reports it as a
+            # parameter problem such as 132018): send the text alone and the chart separately
+            separate = bool(media_id) and not r.ok
             if separate:
                 r, code = post(number, template, None)
             delivered |= r.ok
