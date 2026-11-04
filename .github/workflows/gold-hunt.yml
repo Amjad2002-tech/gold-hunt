@@ -15,6 +15,10 @@ on:
         description: "Optional: send only to this number (e.g. 9665XXXXXXXX)"
         type: string
         default: ""
+      waba_id:
+        description: "Only for create_template: WhatsApp Business Account ID"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -54,7 +58,7 @@ jobs:
           META_WA_PHONE_ID: ${{ secrets.META_WA_PHONE_ID }}
           META_WA_TO: ${{ secrets.META_WA_TO }}
           META_WA_TEMPLATE: ${{ secrets.META_WA_TEMPLATE }}
-          META_WA_WABA_ID: ${{ secrets.META_WA_WABA_ID }}
+          META_WA_WABA_ID: ${{ inputs.waba_id || secrets.META_WA_WABA_ID }}
           MODE: ${{ inputs.mode || 'watch' }}
           ONLY_TO: ${{ inputs.only_to }}
         # Output is kept quiet so holdings and P/L never appear in the public log;
