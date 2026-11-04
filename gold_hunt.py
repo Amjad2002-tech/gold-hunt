@@ -459,10 +459,24 @@ def create_chart_template(cfg, sample_png):
     data = r.json().get("data", {})
     app_id = data.get("app_id")
     waba = os.environ.get("META_WA_WABA_ID", "").strip()
+    scopes = data.get("scopes") or [g["scope"] for g in data.get("granular_scopes", [])]
+    print(f"TEMPLATE_TOKEN type={data.get('type')} scopes={','.join(scopes)}")
     if not waba:
         for scope in data.get("granular_scopes", []):
             if scope.get("scope") == "whatsapp_business_management" and scope.get("target_ids"):
                 waba = scope["target_ids"][0]
+    if not waba:  # ask the businesses the token can see for their WhatsApp accounts
+        r = requests.get(graph + "me/businesses", headers=auth, timeout=30, params={"fields": "id"})
+        for biz in (r.json().get("data", []) if r.ok else []):
+            for edge in ("owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"):
+                rw = requests.get(graph + f"{biz['id']}/{edge}", headers=auth, timeout=30,
+                                  params={"fields": "id,phone_numbers{id}"})
+                for acc in (rw.json().get("data", []) if rw.ok else []):
+                    phones = [n.get("id") for n in acc.get("phone_numbers", {}).get("data", [])]
+                    if not waba or cfg["phone_id"] in phones:
+                        waba = acc["id"]
+        if not r.ok:
+            show_error(r, "me/businesses")
     if not waba:
         print("META_ERROR token has no whatsapp_business_management access to a business account"
               " (add it to the token, or set the META_WA_WABA_ID secret)")
