@@ -89,9 +89,58 @@ def _parse_item(it):
             "time": when and str(when), "sentiment": sc, "label": _label(sc)}
 
 
+def _rss(url):
+    """Items of an RSS feed as yfinance-style flat dicts (title, publisher, link, providerPublishTime)."""
+    import requests
+    import xml.etree.ElementTree as ET
+    from email.utils import parsedate_to_datetime
+    r = requests.get(url, timeout=NEWS_TIMEOUT, headers={"User-Agent": "Mozilla/5.0 (Tharwa news reader)"})
+    r.raise_for_status()
+    out = []
+    for it in ET.fromstring(r.content).iter("item"):
+        title = (it.findtext("title") or "").strip()
+        src = it.find("source")
+        pub = src.text.strip() if src is not None and src.text else None
+        if pub and title.endswith(" - " + pub):  # Google News appends the publisher
+            title = title[: -len(pub) - 3]
+        try:
+            ts = parsedate_to_datetime(it.findtext("pubDate")).timestamp()
+        except Exception:
+            ts = None
+        if title:
+            out.append({"title": title, "publisher": pub or "Yahoo Finance",
+                        "link": (it.findtext("link") or "").strip(), "providerPublishTime": ts})
+    return out
+
+
+GOOGLE_QUERY = {"GC=F": "gold price", "GLD": None}
+
+
 def _fetch_news(ticker):
-    import yfinance as yf
-    return yf.Ticker(ticker).news or []
+    """yfinance first; when Yahoo's news API is down, its RSS feed, then Google News."""
+    import urllib.parse
+    try:
+        import yfinance as yf
+        got = yf.Ticker(ticker).news or []
+        if got:
+            return got
+    except Exception:
+        pass
+    got = []
+    if ticker in GOOGLE_QUERY:  # Yahoo's gold feed is mostly mining companies
+        q = GOOGLE_QUERY[ticker]
+        return _rss("https://news.google.com/rss/search?hl=en-US&gl=US&ceid=US:en&q="
+                    + urllib.parse.quote(q + " when:3d")) if q else []
+    try:
+        got = _rss("https://feeds.finance.yahoo.com/rss/2.0/headline?s="
+                   + urllib.parse.quote(ticker) + "&region=US&lang=en-US")
+    except Exception:
+        pass
+    q = GOOGLE_QUERY.get(ticker, ticker + " stock")
+    if len(got) < 5 and q:
+        got += _rss("https://news.google.com/rss/search?hl=en-US&gl=US&ceid=US:en&q="
+                    + urllib.parse.quote(q + " when:7d"))
+    return got
 
 
 _pool = cf.ThreadPoolExecutor(max_workers=4, thread_name_prefix="news")

@@ -1,4 +1,4 @@
-"""Gold Hunt settings page - a small local web page to edit settings.ini and upload it to GitHub.
+"""Tharwa settings page - a small local web page to edit settings.ini and upload it to GitHub.
 
 Run:  python settings_page.py   (or double-click "Gold Hunt Settings.bat")
 Only reachable from this PC (127.0.0.1).

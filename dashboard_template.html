@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Gold Hunt</title>
+<title>Tharwa</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root{--bg:#f7f5f0;--card:#fff;--ink:#1d1b16;--mute:#6b665c;--line:#e6e1d6;--gold:#b8860b;--up:#1a7f4b;--down:#c0392b;--mid:#c27c0e;--a50:#3b6ea5;--a200:#9a8f7d}
 @media (prefers-color-scheme:dark){:root{--bg:#14130f;--card:#1e1c17;--ink:#f1ede4;--mute:#a39d90;--line:#332f27;--gold:#e0b44c;--up:#4cc38a;--down:#ef6b5b;--mid:#f0a83a;--a50:#7fa8d8;--a200:#7d7466}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,sans-serif}
 .wrap{max-width:1100px;margin:0 auto;padding:24px 16px}
-h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);margin:4px 0 20px}
+h1{margin:0;font-size:26px}h1 span{color:var(--gold)}h1 .tag{font-size:14px;font-weight:500;color:var(--mute);margin-inline-start:6px}.sub{color:var(--mute);margin:4px 0 20px}
 .total{display:flex;gap:24px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:20px}
 .total div small{display:block;color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.05em}.total b{font-size:20px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:20px}
@@ -17,14 +17,14 @@ h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);marg
 .low{background:color-mix(in srgb,var(--up) 15%,transparent);color:var(--up)}
 .mid{background:color-mix(in srgb,var(--mid) 18%,transparent);color:var(--mid)}
 .high{background:color-mix(in srgb,var(--down) 15%,transparent);color:var(--down)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:16px 0}.grid>div{min-width:0;overflow-wrap:anywhere}
 .grid div{border:1px solid var(--line);border-radius:10px;padding:10px}.grid small{display:block;color:var(--mute);font-size:12px}
-.pos{color:var(--up)}.neg{color:var(--down)}ul{margin:6px 0 0;padding-left:20px;color:var(--mute)}
+.pos{color:var(--up)}.neg{color:var(--down)}ul{margin:6px 0 0;padding-left:20px;color:var(--mute);overflow-wrap:anywhere}
 .bar{height:10px;border-radius:5px;background:linear-gradient(90deg,var(--up),var(--mid),var(--down));position:relative;margin:6px 0 2px}
 .bar i{position:absolute;top:-4px;width:4px;height:18px;background:var(--ink);border-radius:2px}
 .range{display:flex;justify-content:space-between;color:var(--mute);font-size:12px}
 .charts{display:grid;grid-template-columns:2fr 1fr;gap:16px}@media(max-width:760px){.charts{grid-template-columns:1fr}}
-.cbox{position:relative;height:260px}
+.cbox{position:relative;height:260px;min-width:0}@media(max-width:760px){.cbox{height:220px}}
 .tabs{display:flex;gap:6px;margin-bottom:18px}.tabs[hidden]{display:none}
 .tabs a{padding:7px 14px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:14px;font-weight:600}
 .tabs a.on{background:var(--gold);border-color:var(--gold);color:#fff}.note{color:var(--mute);font-size:13px}
@@ -45,7 +45,7 @@ h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);marg
 .sbar{height:8px;border-radius:4px;background:linear-gradient(90deg,var(--down),var(--mid),var(--up));position:relative;margin:10px 0 2px}
 .sbar i{position:absolute;top:-4px;width:4px;height:16px;background:var(--ink);border-radius:2px}
 .bhcols{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-top:10px}@media(max-width:760px){.bhcols{grid-template-columns:1fr}}
-table.ft{width:100%;border-collapse:collapse;font-size:13px}table.ft th,table.ft td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:start}
+table.ft{width:100%;border-collapse:collapse;font-size:13px}.bhcols>*,.olcols>*,.charts>*{min-width:0}.bhcols table.ft{display:block;overflow-x:auto}table.ft th,table.ft td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:start}
 table.ft th{color:var(--mute);font-weight:600}.kv{font-size:13px}.kv div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding:4px 0}.kv span{color:var(--mute)}
 .disc{font-size:12px;color:var(--mute);font-style:italic;margin-top:8px}
 .ol{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
@@ -68,7 +68,7 @@ table.ft th{color:var(--mute);font-weight:600}.kv{font-size:13px}.kv div{display
 </style><script src="i18n.js"></script></head><body><div class="wrap">
 <div class="top"><nav class="tabs" id="tabs" hidden><a class="on" href="/dashboard" data-i18n="tab_dash"></a><a href="/" data-i18n="tab_settings"></a></nav>
 <button class="lang" id="lang"></button></div>
-<h1>Gold <span>Hunt</span></h1>
+<h1><span data-i18n="app_name">Tharwa</span> <small class="tag" data-i18n="tagline"></small></h1>
 <div class="sub" id="sub"></div>
 <div class="livebar"><span class="dot" id="dot"></span><span id="livetxt"></span></div>
 <div class="total" id="total"></div>
@@ -81,7 +81,7 @@ applyI18n();
 document.getElementById('lang').textContent=t('switch');
 document.getElementById('lang').onclick=()=>{setLang(LANG==='ar'?'en':'ar');location.reload()};
 document.getElementById('sub').textContent=t('dash_sub',{stamp:STAMP});
-if(location.port==='8765'){ // opened inside the Gold Hunt app
+if(location.port==='8765'){ // opened inside the Tharwa app
  document.getElementById('tabs').hidden=false;
  setInterval(()=>fetch('/api/ping').catch(()=>{}),20000);
 }
@@ -250,7 +250,7 @@ D.forEach((a,i)=>{
   if(store.get('gh_ol_'+a.key)==='1')od.open=true;}
 });
 function plCell(a){return`<small>${t('profit_loss')}</small><b class="${cls(a.pl)}">${a.pl>=0?'+':''}${f(a.pl,0)} ${cur(a.currency)}</b><br><span class="${cls(a.pl_pct)}">${f(a.pl_pct,1)}%</span>`}
-// ---- live prices (only when served by the Gold Hunt app, which has /api/live)
+// ---- live prices (only when served by the Tharwa app, which has /api/live)
 const dot=document.getElementById('dot'),ltxt=document.getElementById('livetxt');
 let lastOk=0,failed=false;
 function applyQuote(a,q){

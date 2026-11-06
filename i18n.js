@@ -1,8 +1,8 @@
-// Gold Hunt - English / Arabic text for the dashboard and settings page.
+// Tharwa - English / Arabic text for the dashboard and settings page.
 // Use t('key', {v: 1}) in JS, or data-i18n="key" on an element (data-i18n-ph for placeholders).
 const I18N = {
  en: {
-  dir: 'ltr', switch: 'عربي',
+  dir: 'ltr', switch: 'عربي', app_name: 'Tharwa', tagline: 'Gold &amp; stocks tracker',
   tab_dash: '📊 Dashboard', tab_settings: '⚙️ Settings', loading_prices: 'Loading prices…',
   // dashboard
   dash_sub: 'Updated {stamp} · 2-year analysis · Signals are historical/technical facts, not financial advice.',
@@ -33,10 +33,10 @@ const I18N = {
   f_above: 'Alert me ABOVE', f_below: 'Alert me BELOW', add_stock: '+ Add a stock',
   alerts: 'Alerts', alerts_help: 'You also get a WhatsApp message when any price moves a lot in one day.',
   f_daily: 'Alert if the price moves more than (% in one day)', f_lang: 'WhatsApp message language',
-  auto_q: 'What is "Auto"?', auto_a: 'If you leave an alert level empty, Gold Hunt uses an "unusual move" level: the 50-day average ± 2 standard deviations. Prices rarely go past it, so an alert there means something unusual is happening.',
+  auto_q: 'What is "Auto"?', auto_a: 'If you leave an alert level empty, Tharwa uses an "unusual move" level: the 50-day average ± 2 standard deviations. Prices rarely go past it, so an alert there means something unusual is happening.',
   save: 'Save', ready: 'Ready', loading: 'Loading…', saving: 'Saving…', unsaved: 'Unsaved changes',
   saved_both: '✓ Saved on this PC and GitHub — used from the next check',
-  saved_pc: 'Saved on this PC, but GitHub was not updated: {e}', no_server: '⚠ Could not reach the Gold Hunt program. Close this window and open the app again.',
+  saved_pc: 'Saved on this PC, but GitHub was not updated: {e}', no_server: '⚠ Could not reach the Tharwa program. Close this window and open the app again.',
   live_loading: 'Loading live price…', live_hint: 'Type a ticker to see its live price.',
   live_bad: 'Could not find prices for "{t}". Check the ticker (Saudi stocks end with .SR).',
   now: 'Now', your_pl: 'Your profit/loss', range: '2-year range {lo} – {hi}',
@@ -48,7 +48,7 @@ const I18N = {
   search_none: 'No match. Try the English company name or the ticker number (e.g. 1120).', search_wait: 'Searching…',
   m_saudi: 'Saudi', m_us: 'US',
   // live prices + chart range
-  live_on: 'Live', live_ago: 'updated {s}s ago', live_off: 'Live prices only when opened from the Gold Hunt app',
+  live_on: 'Live', live_ago: 'updated {s}s ago', live_off: 'Live prices only when opened from the Tharwa app',
   live_err: 'Live update failed - showing last price', mkt_closed: 'market closed', src: 'source: {s}',
   delay_rt: 'real time', delay_min: 'delayed ~{m} min', rng_label: 'Range',
   r_1m: '1M', r_3m: '3M', r_1y: '1Y', r_2y: '2Y', r_5y: '5Y',
@@ -93,7 +93,7 @@ const I18N = {
   bh_disclaimer: 'Historical statistics only, not financial advice. The past does not guarantee the future.',
  },
  ar: {
-  dir: 'rtl', switch: 'English',
+  dir: 'rtl', switch: 'English', app_name: 'ثروة', tagline: 'متابعة الذهب والأسهم',
   tab_dash: '📊 لوحة الأسعار', tab_settings: '⚙️ الإعدادات', loading_prices: 'جاري تحميل الأسعار…',
   dash_sub: 'آخر تحديث {stamp} · تحليل آخر سنتين · الإشارات حقائق تاريخية/فنية وليست نصيحة مالية.',
   value: 'قيمة ممتلكاتك ({c})', pl: 'الربح / الخسارة ({c})', today: 'اليوم', you_hold: 'تملك',
@@ -121,10 +121,10 @@ const I18N = {
   f_above: 'نبهني فوق', f_below: 'نبهني تحت', add_stock: '+ إضافة سهم',
   alerts: 'التنبيهات', alerts_help: 'تصلك أيضاً رسالة واتساب إذا تحرك أي سعر كثيراً في يوم واحد.',
   f_daily: 'نبهني إذا تحرك السعر أكثر من (% في اليوم)', f_lang: 'لغة رسائل واتساب',
-  auto_q: 'ماذا يعني "تلقائي"؟', auto_a: 'إذا تركت مستوى التنبيه فارغاً، يستخدم Gold Hunt مستوى "الحركة غير العادية": متوسط 50 يوم ± انحرافين معياريين. نادراً ما يتجاوزه السعر، فالتنبيه عنده يعني أن شيئاً غير عادي يحدث.',
+  auto_q: 'ماذا يعني "تلقائي"؟', auto_a: 'إذا تركت مستوى التنبيه فارغاً، يستخدم ثروة مستوى "الحركة غير العادية": متوسط 50 يوم ± انحرافين معياريين. نادراً ما يتجاوزه السعر، فالتنبيه عنده يعني أن شيئاً غير عادي يحدث.',
   save: 'حفظ', ready: 'جاهز', loading: 'جاري التحميل…', saving: 'جاري الحفظ…', unsaved: 'تغييرات غير محفوظة',
   saved_both: '✓ تم الحفظ على الجهاز وعلى GitHub — يُستخدم من الفحص القادم',
-  saved_pc: 'تم الحفظ على الجهاز، لكن لم يتم تحديث GitHub: {e}', no_server: '⚠ تعذّر الاتصال ببرنامج Gold Hunt. أغلق النافذة وافتح التطبيق مرة أخرى.',
+  saved_pc: 'تم الحفظ على الجهاز، لكن لم يتم تحديث GitHub: {e}', no_server: '⚠ تعذّر الاتصال ببرنامج ثروة. أغلق النافذة وافتح التطبيق مرة أخرى.',
   live_loading: 'جاري تحميل السعر المباشر…', live_hint: 'اكتب رمز السهم لرؤية سعره المباشر.',
   live_bad: 'لم نجد أسعاراً للرمز "{t}". تأكد من الرمز (الأسهم السعودية تنتهي بـ .SR).',
   now: 'الآن', your_pl: 'ربحك/خسارتك', range: 'نطاق السنتين {lo} – {hi}',
@@ -135,7 +135,7 @@ const I18N = {
   f_ticker_search: 'اسم الشركة أو الرمز', ph_search: 'اكتب الاسم بالإنجليزي، مثل Al Rajhi أو Apple',
   search_none: 'لا توجد نتائج. جرّب اسم الشركة بالإنجليزي أو رقم السهم (مثل 1120).', search_wait: 'جاري البحث…',
   m_saudi: 'سعودي', m_us: 'أمريكي',
-  live_on: 'مباشر', live_ago: 'آخر تحديث قبل {s} ث', live_off: 'الأسعار المباشرة تعمل فقط عند فتح اللوحة من تطبيق Gold Hunt',
+  live_on: 'مباشر', live_ago: 'آخر تحديث قبل {s} ث', live_off: 'الأسعار المباشرة تعمل فقط عند فتح اللوحة من تطبيق ثروة',
   live_err: 'تعذّر التحديث المباشر - يظهر آخر سعر', mkt_closed: 'السوق مغلق', src: 'المصدر: {s}',
   delay_rt: 'لحظي', delay_min: 'متأخر ~{m} دقيقة', rng_label: 'المدة',
   r_1m: 'شهر', r_3m: '3 أشهر', r_1y: 'سنة', r_2y: 'سنتان', r_5y: '5 سنوات',

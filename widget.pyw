@@ -1,4 +1,4 @@
-"""Gold Hunt desktop widget - a small always-visible panel with your prices and profit/loss.
+"""Tharwa desktop widget - a small always-visible panel with your prices and profit/loss.
 
 Drag it anywhere; right-click for options. Refreshes every 5 minutes.
 """
@@ -21,11 +21,11 @@ COLORS = {"bg": "#1e1c17", "card": "#26231d", "ink": "#f1ede4", "mute": "#a39d90
 TEXT = {
     "en": {"gold": "Gold 24K", "pl": "P/L", "updated": "Updated {t}", "loading": "Loading prices…",
            "closed": "closed", "error": "Could not load prices - retrying", "refresh": "Refresh now",
-           "open": "Open Gold Hunt", "top": "Always on top", "lang": "عربي", "close": "Close widget",
+           "open": "Open Tharwa", "top": "Always on top", "lang": "عربي", "close": "Close widget",
            "total": "Total P/L"},
     "ar": {"gold": "ذهب 24", "pl": "الربح", "updated": "آخر تحديث {t}", "loading": "جاري تحميل الأسعار…",
            "closed": "مغلق", "error": "تعذّر تحميل الأسعار - إعادة المحاولة", "refresh": "تحديث الآن",
-           "open": "فتح Gold Hunt", "top": "دائماً في المقدمة", "lang": "English", "close": "إغلاق الويدجت",
+           "open": "فتح ثروة", "top": "دائماً في المقدمة", "lang": "English", "close": "إغلاق الويدجت",
            "total": "إجمالي الربح"},
 }
 
@@ -120,7 +120,7 @@ class Widget(tk.Tk):
         side, other = ("e", "w") if rtl else ("w", "e")
         head = tk.Frame(self.body, bg=COLORS["bg"])
         head.grid(row=0, column=0, sticky="ew", pady=(0, 6))
-        self.label(head, "Gold Hunt", "gold", 11, True, row=0, column=0, sticky="w")
+        self.label(head, "ثروة" if rtl else "Tharwa", "gold", 11, True, row=0, column=0, sticky="w")
         if not self.results:
             self.label(self.body, self.T("error" if self.error else "loading"), "mute", 9,
                        row=1, column=0, sticky=side)

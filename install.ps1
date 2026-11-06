@@ -1,16 +1,17 @@
-﻿# Gold Hunt installer (this user only - no admin needed).
+﻿# Tharwa installer (formerly Gold Hunt) (this user only - no admin needed).
 # Run again any time to update the installed app; your data in %USERPROFILE%\Gold Hunt Data is kept.
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 $ErrorActionPreference = 'Stop'
 $src     = $PSScriptRoot
 $dest    = Join-Path $env:LOCALAPPDATA 'Programs\Gold Hunt'
-$start   = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Gold Hunt.lnk'
-$desktop = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Gold Hunt.lnk'
-$regKey  = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\GoldHunt'
+$start   = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Tharwa.lnk'
+$desktop = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Tharwa.lnk'
+$regKey  = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Tharwa'
+$oldRegKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\GoldHunt'
 $pythonw = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\pythonw.exe'
 $python  = (Get-Command python -ErrorAction SilentlyContinue).Source
 
-Write-Host "Installing Gold Hunt to $dest"
+Write-Host "Installing Tharwa to $dest"
 if (-not $python) { throw "Python is not installed. Install Python 3.11+ from the Microsoft Store, then run this again." }
 if (-not (Test-Path $pythonw)) { $pythonw = Join-Path (Split-Path $python) 'pythonw.exe' }
 
@@ -35,10 +36,17 @@ foreach ($f in 'settings.ini','alerts_state.json','gold_ref.json','widget_state.
 # A brand-new user starts from the example file - never from anyone else's settings
 if (-not (Test-Path (Join-Path $data 'settings.ini'))) {
     Copy-Item (Join-Path $src 'settings.example.ini') (Join-Path $data 'settings.ini')
-    Write-Host "Created a fresh settings file - open Gold Hunt and enter your own holdings."
+    Write-Host "Created a fresh settings file - open Tharwa and enter your own holdings."
 }
 
-# 3. Start menu + Desktop shortcuts
+# 3. Start menu + Desktop shortcuts (remove the old "Gold Hunt" ones from before the rename)
+foreach ($old in (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Gold Hunt.lnk'),
+                 (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Gold Hunt Widget.lnk'),
+                 (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\Gold Hunt Widget.lnk'),
+                 (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Gold Hunt.lnk')) {
+    Remove-Item $old -ErrorAction SilentlyContinue
+}
+if (Test-Path $oldRegKey) { Remove-Item $oldRegKey -Recurse -ErrorAction SilentlyContinue }
 $ws = New-Object -ComObject WScript.Shell
 foreach ($path in $start, $desktop) {
     $lnk = $ws.CreateShortcut($path)
@@ -46,20 +54,20 @@ foreach ($path in $start, $desktop) {
     $lnk.Arguments        = "`"$dest\settings_page.py`""
     $lnk.WorkingDirectory = $dest
     $lnk.IconLocation     = "$dest\gold_hunt.ico,0"
-    $lnk.Description      = 'Gold Hunt - gold and stock prices, dashboard and alerts'
+    $lnk.Description      = 'Tharwa - gold and stock prices, dashboard and alerts'
     $lnk.Save()
 }
 
 # 3b. Desktop widget: Start menu entry + start automatically when Windows starts
-$widgetStart = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Gold Hunt Widget.lnk'
-$widgetBoot  = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\Gold Hunt Widget.lnk'
+$widgetStart = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Tharwa Widget.lnk'
+$widgetBoot  = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\Tharwa Widget.lnk'
 foreach ($path in $widgetStart, $widgetBoot) {
     $lnk = $ws.CreateShortcut($path)
     $lnk.TargetPath       = $pythonw
     $lnk.Arguments        = "`"$dest\widget_launcher.pyw`""
     $lnk.WorkingDirectory = $dest
     $lnk.IconLocation     = "$dest\gold_hunt.ico,0"
-    $lnk.Description      = 'Gold Hunt desktop widget - live prices and profit/loss'
+    $lnk.Description      = 'Tharwa desktop widget - live prices and profit/loss'
     $lnk.Save()
 }
 # Restart the widget so it runs the newly installed version
@@ -72,7 +80,7 @@ Start-Process -FilePath $pythonw -ArgumentList "`"$dest\widget_launcher.pyw`"" -
 $size = [int]((Get-ChildItem $dest -Recurse | Measure-Object Length -Sum).Sum / 1KB)
 New-Item -Path $regKey -Force | Out-Null
 $values = @{
-    DisplayName     = 'Gold Hunt'
+    DisplayName     = 'Tharwa'
     DisplayVersion  = '1.0'
     Publisher       = 'Amjad2002-tech'
     DisplayIcon     = "$dest\gold_hunt.ico"
@@ -86,4 +94,4 @@ Set-ItemProperty -Path $regKey -Name EstimatedSize -Value $size -Type DWord
 Set-ItemProperty -Path $regKey -Name NoModify -Value 1 -Type DWord
 Set-ItemProperty -Path $regKey -Name NoRepair -Value 1 -Type DWord
 
-Write-Host "Done. Open 'Gold Hunt' from the Start menu or Desktop. Your data: $data"
+Write-Host "Done. Open 'Tharwa' from the Start menu or Desktop. Your data: $data"

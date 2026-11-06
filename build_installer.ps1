@@ -1,10 +1,10 @@
-# Builds dist\GoldHunt-Setup.zip - the app for another PC, WITHOUT any of your private data.
+# Builds dist\Tharwa-Setup.zip - the app for another PC, WITHOUT any of your private data.
 #   powershell -ExecutionPolicy Bypass -File build_installer.ps1
 $ErrorActionPreference = 'Stop'
 $src   = $PSScriptRoot
 $dist  = Join-Path $src 'dist'
-$stage = Join-Path $dist 'GoldHunt'
-$zip   = Join-Path $dist 'GoldHunt-Setup.zip'
+$stage = Join-Path $dist 'Tharwa'
+$zip   = Join-Path $dist 'Tharwa-Setup.zip'
 
 # Allow-list: only these files ever go in the zip (settings.ini, state files, logs, dashboards, tokens never do)
 $files = 'gold_hunt.py','outlook.py','settings_page.py','app_paths.py','widget.pyw','widget_launcher.pyw',
@@ -17,7 +17,7 @@ if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Force $stage | Out-Null
 foreach ($f in $files) { Copy-Item (Join-Path $src $f) $stage }
 # Double-click helper for the new PC
-Set-Content (Join-Path $stage 'Install Gold Hunt.bat') @'
+Set-Content (Join-Path $stage 'Install Tharwa.bat') @'
 @echo off
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1"
 pause

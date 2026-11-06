@@ -1,4 +1,4 @@
-"""Gold Hunt - price tracker, 2-year analysis, dashboard and WhatsApp alerts.
+"""Tharwa - price tracker, 2-year analysis, dashboard and WhatsApp alerts.
 
 Usage:
     python gold_hunt.py              # analyse, rebuild dashboard, send alerts if triggered
@@ -508,7 +508,7 @@ def find_alerts(a, cfg_alerts):
 # All user-facing text for WhatsApp alerts (the pages use i18n.js)
 TEXT = {
     "en": {
-        "title": "Gold Hunt alert", "riyadh": "Riyadh time", "sep": "; ", "gold_name": "Gold 24K",
+        "title": "Tharwa alert", "riyadh": "Riyadh time", "sep": "; ", "gold_name": "Gold 24K",
         "unit_gram": "SAR/gram", "unit_share": "{c}/share", "cur_SAR": "SAR", "cur_USD": "USD",
         "alert_above": "⬆️ {n} is {p:,.2f} {u} - above your alert level {lvl:,.2f}",
         "alert_below": "⬇️ {n} is {p:,.2f} {u} - below your alert level {lvl:,.2f}",
@@ -522,7 +522,7 @@ TEXT = {
         "verdict_watch": "Watch closely - sell signals building",
         "verdict_none": "No sell signal - trend not stretched",
         "trend_up": "Uptrend", "trend_down": "Downtrend", "trend_side": "Sideways",
-        "test": "✅ Gold Hunt test message - alerts are working.",
+        "test": "✅ Tharwa test message - alerts are working.",
         "morning": "☀️ Good morning - your portfolio report {d}",
         "m_price": "Gold 24K now {p:,.2f} SAR/gram ({c:+.1f}% since yesterday)",
         "m_pl": "Your {g:,.0f} g bought at {b:,.2f}: {pl:+,.0f} SAR ({pp:+.1f}%)",
@@ -573,7 +573,7 @@ TEXT = {
         "bh_disclaimer": "Historical statistics only, not financial advice. The past does not guarantee the future.",
     },
     "ar": {
-        "title": "تنبيه Gold Hunt", "riyadh": "بتوقيت الرياض", "sep": "، ", "gold_name": "ذهب عيار 24",
+        "title": "تنبيه ثروة", "riyadh": "بتوقيت الرياض", "sep": "، ", "gold_name": "ذهب عيار 24",
         "unit_gram": "ريال/جرام", "unit_share": "{c}/سهم", "cur_SAR": "ريال", "cur_USD": "دولار",
         "alert_above": "⬆️ {n} وصل إلى {p:,.2f} {u} - أعلى من مستوى التنبيه {lvl:,.2f}",
         "alert_below": "⬇️ {n} نزل إلى {p:,.2f} {u} - أقل من مستوى التنبيه {lvl:,.2f}",
@@ -587,7 +587,7 @@ TEXT = {
         "verdict_watch": "راقب عن قرب - إشارات البيع تتزايد",
         "verdict_none": "لا توجد إشارة بيع",
         "trend_up": "اتجاه صاعد", "trend_down": "اتجاه هابط", "trend_side": "اتجاه عرضي",
-        "test": "✅ رسالة تجريبية من Gold Hunt - التنبيهات تعمل.",
+        "test": "✅ رسالة تجريبية من ثروة - التنبيهات تعمل.",
         "morning": "☀️ صباح الخير - تقرير محفظتك {d}",
         "m_price": "ذهب عيار 24 الآن {p:,.2f} ريال/جرام ({c:+.1f}% منذ أمس)",
         "m_pl": "لديك {g:,.0f} جرام بسعر شراء {b:,.2f}: {pl:+,.0f} ريال ({pp:+.1f}%)",
@@ -712,7 +712,7 @@ def price_chart(a, days=30, ref=None):
     ax.grid(axis="y", alpha=0.25)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    fig.text(0.99, 0.01, "Gold Hunt - " + dt.datetime.now(RIYADH).strftime("%Y-%m-%d %H:%M") + " Riyadh",
+    fig.text(0.99, 0.01, "Tharwa - " + dt.datetime.now(RIYADH).strftime("%Y-%m-%d %H:%M") + " Riyadh",
              ha="right", fontsize=7, color="#8a8a8a")
     fig.tight_layout()
     buf = io.BytesIO()
@@ -764,7 +764,7 @@ def portfolio_chart(results, days=30):
             ax.spines[side].set_visible(False)
     for ax in list(axes.flat)[len(results):]:
         ax.set_visible(False)
-    fig.text(0.99, 0.005, f"Gold Hunt - last {days} days - " + dt.datetime.now(RIYADH).strftime("%Y-%m-%d %H:%M")
+    fig.text(0.99, 0.005, f"Tharwa - last {days} days - " + dt.datetime.now(RIYADH).strftime("%Y-%m-%d %H:%M")
              + " Riyadh", ha="right", fontsize=7, color="#8a8a8a")
     fig.tight_layout(rect=(0, 0.02, 1, 1))
     buf = io.BytesIO()

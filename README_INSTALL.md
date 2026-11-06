@@ -1,10 +1,27 @@
-# Gold Hunt - install on another PC
+# Tharwa (ثروة) - install on another PC
 
-1. Copy `GoldHunt-Setup.zip` to the other PC and unzip it (right-click > Extract All).
+## Easiest: download on any PC
+
+Open **PowerShell** on the other PC and paste:
+
+    irm https://raw.githubusercontent.com/Amjad2002-tech/gold-hunt/main/get.ps1 | iex
+
+It downloads the latest Tharwa, installs Python if missing, and creates an empty profile. Each user enters their own holdings.
+
+## الأسهل: التحميل على أي جهاز
+
+افتح **PowerShell** على الجهاز الآخر والصق:
+
+    irm https://raw.githubusercontent.com/Amjad2002-tech/gold-hunt/main/get.ps1 | iex
+
+يحمّل أحدث نسخة من ثروة ويثبّتها، وكل مستخدم يدخل استثماراته الخاصة.
+
+
+1. Copy `Tharwa-Setup.zip` to the other PC and unzip it (right-click > Extract All).
 2. Install Python 3.11+ (Microsoft Store) if it is not there yet.
-3. Double-click **Install Gold Hunt.bat** (or run `powershell -ExecutionPolicy Bypass -File install.ps1`).
-   It installs the libraries it needs and adds Gold Hunt to the Start menu and Desktop.
-4. Open **Gold Hunt** and enter **your own** gold grams and stocks, then press Save.
+3. Double-click **Install Tharwa.bat** (or run `powershell -ExecutionPolicy Bypass -File install.ps1`).
+   It installs the libraries it needs and adds Tharwa to the Start menu and Desktop.
+4. Open **Tharwa** and enter **your own** gold grams and stocks, then press Save.
 
 **Your data stays on your PC.** Each Windows user gets their own private folder
 `%USERPROFILE%\Gold Hunt Data` (settings, alerts, dashboard). The zip contains no one else's holdings.
@@ -21,10 +38,10 @@ The analysis in the app is historical/technical statistics, not financial advice
 
 # جولد هنت - التثبيت على جهاز آخر
 
-1. انسخ الملف `GoldHunt-Setup.zip` إلى الجهاز الآخر وفك الضغط (زر يمين > Extract All).
+1. انسخ الملف `Tharwa-Setup.zip` إلى الجهاز الآخر وفك الضغط (زر يمين > Extract All).
 2. ثبّت Python 3.11 أو أحدث (من Microsoft Store) إذا لم يكن مثبتاً.
-3. اضغط مرتين على **Install Gold Hunt.bat**. سيثبت المكتبات اللازمة ويضيف التطبيق لقائمة ابدأ وسطح المكتب.
-4. افتح **Gold Hunt** وأدخل **بياناتك أنت**: جرامات الذهب والأسهم، ثم اضغط حفظ.
+3. اضغط مرتين على **Install Tharwa.bat**. سيثبت المكتبات اللازمة ويضيف التطبيق لقائمة ابدأ وسطح المكتب.
+4. افتح **ثروة** وأدخل **بياناتك أنت**: جرامات الذهب والأسهم، ثم اضغط حفظ.
 
 **بياناتك تبقى على جهازك فقط.** لكل مستخدم مجلد خاص `%USERPROFILE%\Gold Hunt Data` فيه الإعدادات والتنبيهات.
 الملف المضغوط لا يحتوي على بيانات أي شخص آخر، والتحديث أو إعادة التثبيت لا يمسح بياناتك.

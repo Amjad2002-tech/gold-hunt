@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Gold Hunt Holdings</title>
+<title>Tharwa</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans@5.1.0/index.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/geist-mono@5.1.0/index.css">
 <style>
@@ -23,7 +23,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-w
 
 /* header */
 header{display:flex;align-items:center;justify-content:space-between;gap:16px;height:68px}
-.brand{font-weight:650;font-size:18px;letter-spacing:-.01em}.brand b{color:var(--accent);font-weight:650}
+.brand{font-weight:650;font-size:18px;letter-spacing:-.01em}.brand b{color:var(--accent);font-weight:650}.brand small{display:block;font-size:12px;font-weight:500;color:var(--muted,#888);letter-spacing:0}
 nav{display:flex;gap:4px;background:var(--sunk);padding:4px;border-radius:999px}
 nav a{padding:6px 14px;border-radius:999px;color:var(--ink2);text-decoration:none;font-size:14px;font-weight:500}
 nav a[aria-current]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
@@ -94,12 +94,12 @@ details.alerts summary{cursor:pointer;color:var(--ink2);font-size:13.5px;font-we
 @media (max-width:900px){.h-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pl{border:0;padding:0}}
 @media (max-width:640px){
  .summary{grid-template-columns:1fr}.h-grid,.a-grid,.prefs{grid-template-columns:repeat(2,minmax(0,1fr))}
- nav a{padding:6px 10px}.wrap{padding:0 16px 140px}
+ nav a{padding:6px 10px;white-space:nowrap}.wrap{padding:0 16px 140px}.brand small{display:none}
 }
 </style><script src="/i18n.js"></script></head><body>
 <div class="wrap">
  <header>
-  <div class="brand">Gold <b>Hunt</b></div>
+  <div class="brand"><b data-i18n="app_name">Tharwa</b><small data-i18n="tagline"></small></div>
   <nav><a href="/dashboard" id="dashTab" data-i18n="h_tab_dash"></a><a href="/" aria-current="page" data-i18n="h_tab_hold"></a></nav>
   <button class="ghost" id="lang"></button>
  </header>
@@ -171,7 +171,7 @@ Object.assign(I18N.en,{h_tab_dash:'Dashboard',h_tab_hold:'Holdings',h_total:'Por
  h_draft:'New: enter your quantity and buy price, then Save.',h_need:'Enter the quantity and buy price, or remove this row.',
  h_empty:'No stocks yet. Search above to add one.',h_badticker:'No prices found for {t}.',h_dupe:'{t} is already in your list.',h_rm:'Remove {n}?',
  h_gold:'Gold 24K',h_gold_sub:'Dewan Al Dahab price, SAR per gram',h_saudi:'Saudi market',h_us:'US market',h_ready:'Up to date',h_unsaved:'Unsaved changes',
- h_saving:'Saving…',h_saved:'Saved to this PC and your WhatsApp alerts',h_savedpc:'Saved on this PC only: {e}',h_noserver:'The Gold Hunt app is not responding. Reopen it and try again.',h_loading:'Loading…'});
+ h_saving:'Saving…',h_saved:'Saved to this PC and your WhatsApp alerts',h_savedpc:'Saved on this PC only: {e}',h_noserver:'The Tharwa app is not responding. Reopen it and try again.',h_loading:'Loading…'});
 Object.assign(I18N.ar,{h_tab_dash:'لوحة الأسعار',h_tab_hold:'ممتلكاتي',h_total:'قيمة المحفظة (ريال)',h_sar:'الممتلكات السعودية',h_usd:'الممتلكات الأمريكية',
  h_title:'ممتلكاتك',h_lead:'أدخل ما تملكه وسعر شرائك. الأسعار تتحدث مباشرة، وزر الحفظ يرسل كل شيء إلى تنبيهات واتساب.',
  h_add_label:'إضافة سهم',h_add_ph:'اسم الشركة بالإنجليزي أو الرمز، مثل Intuitive Machines أو LUNR',h_today:'اليوم',h_yesterday:'أمس',h_change:'التغير',
@@ -181,7 +181,7 @@ Object.assign(I18N.ar,{h_tab_dash:'لوحة الأسعار',h_tab_hold:'ممتل
  h_draft:'جديد: أدخل الكمية وسعر الشراء ثم اضغط حفظ.',h_need:'أدخل الكمية وسعر الشراء، أو احذف هذا السطر.',
  h_empty:'لا توجد أسهم بعد. ابحث بالأعلى لإضافة سهم.',h_badticker:'لم نجد أسعاراً للرمز {t}.',h_dupe:'{t} موجود بالفعل في قائمتك.',h_rm:'حذف {n}؟',
  h_gold:'ذهب عيار 24',h_gold_sub:'سعر ديوان الذهب، ريال للجرام',h_saudi:'السوق السعودي',h_us:'السوق الأمريكي',h_ready:'محدّث',h_unsaved:'تغييرات غير محفوظة',
- h_saving:'جاري الحفظ…',h_saved:'تم الحفظ على الجهاز وفي تنبيهات واتساب',h_savedpc:'تم الحفظ على الجهاز فقط: {e}',h_noserver:'تطبيق Gold Hunt لا يستجيب. أعد فتحه وحاول مرة أخرى.',h_loading:'جاري التحميل…'});
+ h_saving:'جاري الحفظ…',h_saved:'تم الحفظ على الجهاز وفي تنبيهات واتساب',h_savedpc:'تم الحفظ على الجهاز فقط: {e}',h_noserver:'تطبيق ثروة لا يستجيب. أعد فتحه وحاول مرة أخرى.',h_loading:'جاري التحميل…'});
 
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
 const USD_SAR=3.75;
