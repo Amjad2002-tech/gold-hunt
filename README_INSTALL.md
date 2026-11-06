@@ -7,7 +7,7 @@
 4. Open **Gold Hunt** and enter **your own** gold grams and stocks, then press Save.
 
 **Your data stays on your PC.** Each Windows user gets their own private folder
-`%APPDATA%\Gold Hunt` (settings, alerts, dashboard). The zip contains no one else's holdings.
+`%USERPROFILE%\Gold Hunt Data` (settings, alerts, dashboard). The zip contains no one else's holdings.
 Updating or reinstalling never overwrites it; uninstalling keeps it (delete the folder to erase it).
 
 **Optional extras** - not needed to use the app:
@@ -26,7 +26,7 @@ The analysis in the app is historical/technical statistics, not financial advice
 3. اضغط مرتين على **Install Gold Hunt.bat**. سيثبت المكتبات اللازمة ويضيف التطبيق لقائمة ابدأ وسطح المكتب.
 4. افتح **Gold Hunt** وأدخل **بياناتك أنت**: جرامات الذهب والأسهم، ثم اضغط حفظ.
 
-**بياناتك تبقى على جهازك فقط.** لكل مستخدم مجلد خاص `%APPDATA%\Gold Hunt` فيه الإعدادات والتنبيهات.
+**بياناتك تبقى على جهازك فقط.** لكل مستخدم مجلد خاص `%USERPROFILE%\Gold Hunt Data` فيه الإعدادات والتنبيهات.
 الملف المضغوط لا يحتوي على بيانات أي شخص آخر، والتحديث أو إعادة التثبيت لا يمسح بياناتك.
 
 **إضافات اختيارية:**

@@ -1,5 +1,5 @@
 ﻿# Gold Hunt installer (this user only - no admin needed).
-# Run again any time to update the installed app; your data in %APPDATA%\Gold Hunt is kept.
+# Run again any time to update the installed app; your data in %USERPROFILE%\Gold Hunt Data is kept.
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 $ErrorActionPreference = 'Stop'
 $src     = $PSScriptRoot
@@ -20,13 +20,13 @@ if ($LASTEXITCODE -ne 0) { throw "Installing Python libraries failed (check your
 & $python -m playwright install chromium
 if ($LASTEXITCODE -ne 0) { Write-Warning "Playwright Chromium did not install - gold price will fall back to world price." }
 
-# 2. App files. Your own data lives separately in %APPDATA%\Gold Hunt, so updates never touch it.
-$data = Join-Path $env:APPDATA 'Gold Hunt'
+# 2. App files. Your own data lives separately in %USERPROFILE%\Gold Hunt Data, so updates never touch it.
+$data = Join-Path $env:USERPROFILE 'Gold Hunt Data'
 New-Item -ItemType Directory -Force $dest, $data | Out-Null
-$files = 'gold_hunt.py','settings_page.py','app_paths.py','widget.pyw','widget_launcher.pyw','settings_page.html',
+$files = 'gold_hunt.py','outlook.py','settings_page.py','app_paths.py','widget.pyw','widget_launcher.pyw','settings_page.html',
          'dashboard_template.html','i18n.js','gold_hunt.ico','requirements.txt','settings.example.ini','uninstall.ps1'
 foreach ($f in $files) { Copy-Item (Join-Path $src $f) $dest -Force }
-Set-Content (Join-Path $dest 'data_dir.txt') '%APPDATA%\Gold Hunt' -Encoding ascii
+Set-Content (Join-Path $dest 'data_dir.txt') '%USERPROFILE%\Gold Hunt Data' -Encoding ascii
 # Older installs kept data next to the app: move it to the data folder once
 foreach ($f in 'settings.ini','alerts_state.json','gold_ref.json','widget_state.json') {
     $old = Join-Path $dest $f
