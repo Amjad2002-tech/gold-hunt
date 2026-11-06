@@ -1,224 +1,330 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Gold Hunt Settings</title>
+<title>Gold Hunt Holdings</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans@5.1.0/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/geist-mono@5.1.0/index.css">
 <style>
-:root{--bg:#f7f5f0;--card:#fff;--ink:#1d1b16;--mute:#6b665c;--line:#e6e1d6;--gold:#b8860b;--up:#1a7f4b;--down:#c0392b;--mid:#c27c0e;--field:#fbfaf7;--chip:#f1ece1}
-@media (prefers-color-scheme:dark){:root{--bg:#14130f;--card:#1e1c17;--ink:#f1ede4;--mute:#a39d90;--line:#332f27;--gold:#e0b44c;--up:#4cc38a;--down:#ef6b5b;--mid:#f0a83a;--field:#171612;--chip:#2a2720}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,sans-serif}
-.wrap{max-width:860px;margin:0 auto;padding:24px 16px 120px}
-h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);margin:4px 0 22px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
-.card h2{margin:0 0 4px;font-size:18px;display:flex;justify-content:space-between;align-items:center;gap:8px}
-.help{color:var(--mute);font-size:13px;margin:0 0 14px}
-.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
-label{display:block;font-size:13px;font-weight:600;margin-bottom:4px}
-input,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--field);color:var(--ink);font:inherit}
-input:focus,select:focus{outline:2px solid var(--gold);outline-offset:-1px}
-input[inputmode=decimal],[data-f=ticker]{direction:ltr;text-align:start}
-.live{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:baseline;background:var(--chip);border-radius:10px;padding:10px 14px;margin:14px 0}
-.live b{font-size:20px}.live .note{font-size:13px;color:var(--mute)}
+/* One palette (zinc + a single gold accent), one radius scale (12px boxes, pill buttons) */
+:root{
+ --bg:#f6f6f4;--surface:#ffffff;--sunk:#f0f0ed;--ink:#18181b;--ink2:#52525b;--mute:#6f6f78;
+ --line:#e4e4e0;--accent:#a8781c;--accent-ink:#ffffff;--accent-soft:#f5ecd8;
+ --up:#15803d;--down:#b42318;--focus:#a8781c;--shadow:0 1px 2px rgb(24 24 27/.05),0 8px 24px -12px rgb(24 24 27/.12);
+ --r:12px;--sans:"Geist Sans","Geist","Segoe UI","Noto Kufi Arabic",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,"Cascadia Mono",monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+ --bg:#111113;--surface:#18181b;--sunk:#1f1f23;--ink:#f4f4f5;--ink2:#c4c4cc;--mute:#a1a1aa;
+ --line:#2c2c31;--accent:#e2b450;--accent-ink:#1a1405;--accent-soft:#2c2414;
+ --up:#4ade80;--down:#f87171;--focus:#e2b450;--shadow:0 1px 2px rgb(0 0 0/.3),0 10px 30px -14px rgb(0 0 0/.6);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px 140px}
+
+/* header */
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;height:68px}
+.brand{font-weight:650;font-size:18px;letter-spacing:-.01em}.brand b{color:var(--accent);font-weight:650}
+nav{display:flex;gap:4px;background:var(--sunk);padding:4px;border-radius:999px}
+nav a{padding:6px 14px;border-radius:999px;color:var(--ink2);text-decoration:none;font-size:14px;font-weight:500}
+nav a[aria-current]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.ghost{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:7px 14px;font:inherit;font-size:14px;cursor:pointer}
+
+/* summary */
+.summary{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin:12px 0 40px}
+.summary>div{background:var(--surface);padding:20px 22px}
+.summary h3{margin:0 0 6px;font-size:13px;font-weight:500;color:var(--mute)}
+.summary .big{font-size:30px;font-weight:600;letter-spacing:-.02em}
+.summary .mid{font-size:22px;font-weight:600}
+.summary small{display:block;color:var(--mute);font-size:13px;margin-top:4px}
+
+h1{font-size:26px;letter-spacing:-.02em;margin:0 0 4px;font-weight:650}
+.lead{color:var(--ink2);margin:0 0 20px;max-width:62ch}
+h2{font-size:18px;margin:0 0 14px;font-weight:600}
+section{margin-bottom:44px}
+
+/* add stock search */
+.search{position:relative;margin-bottom:18px;max-width:520px}
+label{display:block;font-size:13px;font-weight:550;color:var(--ink2);margin-bottom:6px}
+input,select{width:100%;height:42px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit}
+input::placeholder{color:var(--mute)}
+input:focus,select:focus,button:focus-visible,a:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+input.bad{border-color:var(--down)}
+.results{position:absolute;inset-inline:0;top:calc(100% + 6px);z-index:20;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.results button{display:flex;justify-content:space-between;gap:12px;width:100%;padding:11px 14px;border:0;background:none;color:var(--ink);font:inherit;text-align:start;cursor:pointer}
+.results button:hover,.results button:focus{background:var(--sunk)}
+.results small{color:var(--mute)}.results .empty{padding:12px 14px;color:var(--mute);font-size:14px}
+
+/* holding rows */
+.holding{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:12px}
+.holding.draft{border-color:var(--accent);background:linear-gradient(var(--accent-soft),var(--accent-soft)) padding-box}
+.h-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.h-name{font-size:17px;font-weight:600}.h-sub{color:var(--mute);font-size:13px}
+.verdict{font-size:12.5px;font-weight:550;padding:3px 10px;border-radius:999px;background:var(--sunk);color:var(--ink2);white-space:nowrap}
+.verdict.high{background:color-mix(in srgb,var(--down) 14%,transparent);color:var(--down)}
+.verdict.mid{background:var(--accent-soft);color:var(--accent)}
+.h-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.1fr) minmax(0,1.1fr) minmax(0,1.3fr);gap:16px;margin-top:16px;align-items:end}
+.metric small{display:block;color:var(--mute);font-size:12.5px;margin-bottom:3px}
+.metric .v{font-size:17px;font-weight:600}
 .pos{color:var(--up)}.neg{color:var(--down)}
+.pl{border-inline-start:1px solid var(--line);padding-inline-start:16px}
+.pl .v{font-size:20px}
+.skel{display:inline-block;height:1em;width:5.5em;border-radius:6px;background:linear-gradient(90deg,var(--sunk),var(--line),var(--sunk));background-size:200% 100%}
+@media (prefers-reduced-motion:no-preference){.skel{animation:sh 1.2s ease-in-out infinite}@keyframes sh{to{background-position:-200% 0}}}
+.h-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;color:var(--mute);font-size:13px}
+.link{background:none;border:0;padding:0;color:var(--ink2);font:inherit;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.link.danger{color:var(--down)}
+.err{color:var(--down);font-size:13px;margin-top:8px}
+details.alerts{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+details.alerts summary{cursor:pointer;color:var(--ink2);font-size:13.5px;font-weight:550}
+.a-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:12px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer}
-.chip:hover{border-color:var(--gold)}
-.badge{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px}
-.low{background:color-mix(in srgb,var(--up) 15%,transparent);color:var(--up)}
-.mid{background:color-mix(in srgb,var(--mid) 18%,transparent);color:var(--mid)}
-.high{background:color-mix(in srgb,var(--down) 15%,transparent);color:var(--down)}
-.btn{border:0;border-radius:10px;padding:11px 18px;font:inherit;font-weight:600;cursor:pointer}
-.primary{background:var(--gold);color:#fff}.primary:disabled{opacity:.6;cursor:wait}
-.ghost{background:transparent;border:1px dashed var(--line);color:var(--ink);width:100%}
-.remove{background:transparent;color:var(--down);border:1px solid var(--line);padding:5px 12px;font-size:13px}
-.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:12px 16px}
-.bar .in{max-width:860px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:999px;padding:3px 10px;font:inherit;font-size:12px;cursor:pointer}
+.chip:hover{border-color:var(--accent);color:var(--ink)}
+.emptystate{border:1px dashed var(--line);border-radius:var(--r);padding:26px;text-align:center;color:var(--mute)}
+.prefs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;max-width:780px}
+.help{color:var(--mute);font-size:12.5px;margin-top:6px}
+
+/* save bar */
+.bar{position:fixed;inset-inline:0;bottom:0;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);border-top:1px solid var(--line)}
+.bar .in{max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;gap:16px}
 #status{font-size:14px;color:var(--mute)}#status.ok{color:var(--up)}#status.err{color:var(--down)}
-.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
-.tabs{display:flex;gap:6px}
-.tabs a{padding:7px 14px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:14px;font-weight:600}
-.tabs a.on{background:var(--gold);border-color:var(--gold);color:#fff}
-.lang{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font:inherit;font-weight:600;cursor:pointer}
-.search{position:relative}
-.results{position:absolute;z-index:5;top:100%;inset-inline:0;min-width:280px;margin-top:4px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);overflow:hidden}
-.results button{display:flex;justify-content:space-between;gap:10px;width:100%;padding:9px 12px;border:0;background:none;color:var(--ink);font:inherit;text-align:start;cursor:pointer}
-.results button:hover,.results button:focus{background:var(--chip)}
-.results small{color:var(--mute)}.results .empty{padding:9px 12px;color:var(--mute);font-size:13px}
-details{margin-top:4px}summary{cursor:pointer;color:var(--mute);font-size:13px}
+.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;padding:11px 26px;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+.primary:active,.ghost:active{transform:translateY(1px)}.primary:disabled{opacity:.6;cursor:wait}
+
+@media (max-width:900px){.h-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pl{border:0;padding:0}}
+@media (max-width:640px){
+ .summary{grid-template-columns:1fr}.h-grid,.a-grid,.prefs{grid-template-columns:repeat(2,minmax(0,1fr))}
+ nav a{padding:6px 10px}.wrap{padding:0 16px 140px}
+}
 </style><script src="/i18n.js"></script></head><body>
 <div class="wrap">
- <div class="top"><nav class="tabs"><a href="/dashboard" id="dashTab" data-i18n="tab_dash"></a><a class="on" href="/" data-i18n="tab_settings"></a></nav>
- <button class="lang" id="lang"></button></div>
- <h1>Gold <span>Hunt</span> · <b data-i18n="set_title"></b></h1>
- <div class="sub" data-i18n="set_sub"></div>
+ <header>
+  <div class="brand">Gold <b>Hunt</b></div>
+  <nav><a href="/dashboard" id="dashTab" data-i18n="h_tab_dash"></a><a href="/" aria-current="page" data-i18n="h_tab_hold"></a></nav>
+  <button class="ghost" id="lang"></button>
+ </header>
 
- <div class="card" id="gold">
-  <h2><span data-i18n="gold_card"></span> <span class="badge" data-verdict></span></h2>
-  <p class="help" data-i18n="gold_help"></p>
-  <div class="row">
-   <div><label data-i18n="f_grams"></label><input data-f="grams" inputmode="decimal"></div>
-   <div><label data-i18n="f_gold_buy"></label><input data-f="buy_price" inputmode="decimal"></div>
-  </div>
-  <div class="live" data-live data-i18n="live_loading"></div>
-  <div class="row">
-   <div><label data-i18n="f_gold_above"></label><input data-f="alert_above" inputmode="decimal" data-i18n-ph="ph_auto_hi"><div class="chips" data-chips="above"></div></div>
-   <div><label data-i18n="f_move_sar"></label><input data-f="move_alert_sar" inputmode="decimal" placeholder="10"></div>
-   <div><label data-i18n="f_gold_below"></label><input data-f="alert_below" inputmode="decimal" data-i18n-ph="ph_auto_lo"><div class="chips" data-chips="below"></div></div>
-  </div>
+ <div class="summary" aria-live="polite">
+  <div><h3 data-i18n="h_total"></h3><div class="big num" id="sumTotal"><span class="skel"></span></div><small id="sumTotalPl"></small></div>
+  <div><h3 data-i18n="h_sar"></h3><div class="mid num" id="sumSar"><span class="skel"></span></div><small id="sumSarPl"></small></div>
+  <div><h3 data-i18n="h_usd"></h3><div class="mid num" id="sumUsd"><span class="skel"></span></div><small id="sumUsdPl"></small></div>
  </div>
 
- <div class="card">
-  <h2 data-i18n="stocks"></h2>
-  <p class="help" data-i18n="stocks_help"></p>
-  <div id="stocks"></div>
-  <button class="btn ghost" id="add" data-i18n="add_stock"></button>
- </div>
-
- <div class="card">
-  <h2 data-i18n="alerts"></h2>
-  <p class="help" data-i18n="alerts_help"></p>
-  <div class="row">
-   <div><label data-i18n="f_daily"></label><input id="daily" inputmode="decimal"></div>
-   <div><label data-i18n="f_lang"></label><select id="alertLang"><option value="ar">العربية</option><option value="en">English</option></select></div>
+ <section>
+  <h1 data-i18n="h_title"></h1>
+  <p class="lead" data-i18n="h_lead"></p>
+  <div class="search">
+   <label for="add" data-i18n="h_add_label"></label>
+   <input id="add" autocomplete="off" data-i18n-ph="h_add_ph">
+   <div class="results" id="results" hidden></div>
   </div>
-  <details><summary data-i18n="auto_q"></summary><p class="help" data-i18n="auto_a"></p></details>
- </div>
+  <div id="holdings"></div>
+ </section>
+
+ <section>
+  <h2 data-i18n="h_prefs"></h2>
+  <div class="prefs">
+   <div><label for="daily" data-i18n="h_daily"></label><input id="daily" class="num" inputmode="decimal"><div class="help" data-i18n="h_daily_help"></div></div>
+   <div><label for="alertLang" data-i18n="h_lang"></label><select id="alertLang"><option value="ar">العربية</option><option value="en">English</option></select></div>
+  </div>
+ </section>
 </div>
 
-<div class="bar"><div class="in"><span id="status"></span><button class="btn primary" id="save" data-i18n="save"></button></div></div>
+<div class="bar"><div class="in"><span id="status" role="status"></span><button class="primary" id="save" data-i18n="h_save"></button></div></div>
 
-<template id="stockTpl">
- <div class="card" style="background:var(--field)" data-stock>
-  <h2><span data-title></span> <span><span class="badge" data-verdict></span> <button class="btn remove" data-remove data-i18n="remove"></button></span></h2>
-  <div class="row">
-   <div class="search"><label data-i18n="f_ticker_search"></label><input data-f="ticker" data-i18n-ph="ph_search" autocomplete="off"><div class="results" hidden></div></div>
-   <div><label data-i18n="f_name"></label><input data-f="name" data-i18n-ph="ph_name"></div>
-   <div><label data-i18n="f_currency"></label><select data-f="currency"><option value="SAR">SAR</option><option value="USD">USD</option></select></div>
+<template id="tpl">
+ <article class="holding">
+  <div class="h-top">
+   <div><div class="h-name" data-title></div><div class="h-sub" data-sub></div></div>
+   <span class="verdict" data-verdict hidden></span>
   </div>
-  <div class="row" style="margin-top:12px">
-   <div><label data-i18n="f_shares"></label><input data-f="shares" inputmode="decimal"></div>
-   <div><label data-i18n="f_stock_buy"></label><input data-f="buy_price" inputmode="decimal"></div>
+  <div class="h-grid">
+   <div class="metric"><small data-i18n="h_today"></small><div class="v num" data-today><span class="skel"></span></div></div>
+   <div class="metric"><small data-i18n="h_yesterday"></small><div class="v num" data-prev><span class="skel"></span></div></div>
+   <div class="metric"><small data-i18n="h_change"></small><div class="v num" data-change><span class="skel"></span></div></div>
+   <div><label data-qty-label></label><input class="num" data-f="qty" inputmode="decimal"></div>
+   <div><label data-buy-label></label><input class="num" data-f="buy_price" inputmode="decimal"></div>
+   <div class="metric pl"><small data-i18n="h_pl"></small><div class="v" data-pl>-</div><small data-plsub></small></div>
   </div>
-  <div class="live" data-live data-i18n="live_hint"></div>
-  <div class="row">
-   <div><label data-i18n="f_above"></label><input data-f="alert_above" inputmode="decimal" data-i18n-ph="ph_auto"><div class="chips" data-chips="above"></div></div>
-   <div><label data-i18n="f_below"></label><input data-f="alert_below" inputmode="decimal" data-i18n-ph="ph_auto"><div class="chips" data-chips="below"></div></div>
-  </div>
- </div>
+  <div class="err" data-err hidden></div>
+  <details class="alerts">
+   <summary data-i18n="h_alerts"></summary>
+   <div class="a-grid">
+    <div data-cur-wrap><label data-i18n="h_currency"></label><select data-f="currency"><option value="SAR">SAR</option><option value="USD">USD</option></select></div>
+    <div><label data-i18n="h_above"></label><input class="num" data-f="alert_above" inputmode="decimal" data-i18n-ph="h_auto"><div class="chips" data-chips="above"></div></div>
+    <div><label data-i18n="h_below"></label><input class="num" data-f="alert_below" inputmode="decimal" data-i18n-ph="h_auto"><div class="chips" data-chips="below"></div></div>
+    <div data-move-wrap hidden><label data-i18n="h_move"></label><input class="num" data-f="move_alert_sar" inputmode="decimal" placeholder="10"></div>
+   </div>
+  </details>
+  <div class="h-foot"><span data-time></span><button class="link danger" data-remove data-i18n="h_remove"></button></div>
+ </article>
 </template>
 
 <script>
-const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const f=(v,d=2)=>v==null||isNaN(v)?'–':Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
-const r2=v=>Math.round(v*100)/100;
+// Extra text for this page (kept here so i18n.js stays the shared base)
+Object.assign(I18N.en,{h_tab_dash:'Dashboard',h_tab_hold:'Holdings',h_total:'Portfolio value (SAR)',h_sar:'Saudi holdings',h_usd:'US holdings',
+ h_title:'Your holdings',h_lead:'Enter what you hold and what you paid. Prices update live, and Save sends everything to your WhatsApp alerts.',
+ h_add_label:'Add a stock',h_add_ph:'Company name or ticker, e.g. Intuitive Machines or LUNR',h_today:'Today',h_yesterday:'Yesterday',h_change:'Change',
+ h_grams:'Grams',h_shares:'Shares',h_buy:'Buy price ({u})',h_pl:'Profit / loss',h_cost:'Cost {c} {v}',h_alerts:'Alert levels',h_currency:'Currency',
+ h_above:'Alert above',h_below:'Alert below',h_auto:'Auto',h_move:'WhatsApp when price moves (SAR)',h_remove:'Remove',h_prefs:'Alert settings',
+ h_daily:'Daily move alert (%)',h_daily_help:'Message when any holding moves more than this in one day.',h_lang:'WhatsApp language',h_save:'Save',
+ h_draft:'New: enter your quantity and buy price, then Save.',h_need:'Enter the quantity and buy price, or remove this row.',
+ h_empty:'No stocks yet. Search above to add one.',h_badticker:'No prices found for {t}.',h_dupe:'{t} is already in your list.',h_rm:'Remove {n}?',
+ h_gold:'Gold 24K',h_gold_sub:'Dewan Al Dahab price, SAR per gram',h_saudi:'Saudi market',h_us:'US market',h_ready:'Up to date',h_unsaved:'Unsaved changes',
+ h_saving:'Saving…',h_saved:'Saved to this PC and your WhatsApp alerts',h_savedpc:'Saved on this PC only: {e}',h_noserver:'The Gold Hunt app is not responding. Reopen it and try again.',h_loading:'Loading…'});
+Object.assign(I18N.ar,{h_tab_dash:'لوحة الأسعار',h_tab_hold:'ممتلكاتي',h_total:'قيمة المحفظة (ريال)',h_sar:'الممتلكات السعودية',h_usd:'الممتلكات الأمريكية',
+ h_title:'ممتلكاتك',h_lead:'أدخل ما تملكه وسعر شرائك. الأسعار تتحدث مباشرة، وزر الحفظ يرسل كل شيء إلى تنبيهات واتساب.',
+ h_add_label:'إضافة سهم',h_add_ph:'اسم الشركة بالإنجليزي أو الرمز، مثل Intuitive Machines أو LUNR',h_today:'اليوم',h_yesterday:'أمس',h_change:'التغير',
+ h_grams:'الجرامات',h_shares:'عدد الأسهم',h_buy:'سعر الشراء ({u})',h_pl:'الربح / الخسارة',h_cost:'التكلفة {c} {v}',h_alerts:'مستويات التنبيه',h_currency:'العملة',
+ h_above:'تنبيه فوق',h_below:'تنبيه تحت',h_auto:'تلقائي',h_move:'واتساب عند تغير السعر (ريال)',h_remove:'حذف',h_prefs:'إعدادات التنبيه',
+ h_daily:'تنبيه التغير اليومي (%)',h_daily_help:'رسالة عندما يتحرك أي سهم أكثر من هذه النسبة في يوم واحد.',h_lang:'لغة واتساب',h_save:'حفظ',
+ h_draft:'جديد: أدخل الكمية وسعر الشراء ثم اضغط حفظ.',h_need:'أدخل الكمية وسعر الشراء، أو احذف هذا السطر.',
+ h_empty:'لا توجد أسهم بعد. ابحث بالأعلى لإضافة سهم.',h_badticker:'لم نجد أسعاراً للرمز {t}.',h_dupe:'{t} موجود بالفعل في قائمتك.',h_rm:'حذف {n}؟',
+ h_gold:'ذهب عيار 24',h_gold_sub:'سعر ديوان الذهب، ريال للجرام',h_saudi:'السوق السعودي',h_us:'السوق الأمريكي',h_ready:'محدّث',h_unsaved:'تغييرات غير محفوظة',
+ h_saving:'جاري الحفظ…',h_saved:'تم الحفظ على الجهاز وفي تنبيهات واتساب',h_savedpc:'تم الحفظ على الجهاز فقط: {e}',h_noserver:'تطبيق Gold Hunt لا يستجيب. أعد فتحه وحاول مرة أخرى.',h_loading:'جاري التحميل…'});
+
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const USD_SAR=3.75;
+const num=(v,d=2)=>v==null||isNaN(v)?'-':Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const signed=(v,d=2)=>isNaN(v)?'-':(v>=0?'+':'')+num(v,d);
+const N=s=>`<span class="num">${s}</span>`;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cur=c=>LANG==='ar'?({SAR:'ريال',USD:'دولار'}[c]||c):c;
 let dirty=false;
-const status=(msg,c='')=>{const s=$('#status');s.textContent=msg;s.className=c};
-const fill=(box,obj)=>$$('[data-f]',box).forEach(i=>{if(obj[i.dataset.f]!=null&&obj[i.dataset.f]!=='')i.value=obj[i.dataset.f]});
-const read=box=>Object.fromEntries($$('[data-f]',box).map(i=>[i.dataset.f,i.value.trim()]));
-const markDirty=()=>{dirty=true;status(t('unsaved'))};
+const status=(m,c='')=>{const s=$('#status');s.textContent=m;s.className=c};
+const touch=()=>{dirty=true;status(t('h_unsaved'))};
 
-applyI18n();
-$('#lang').textContent=t('switch');
-$('#lang').onclick=()=>{ // switch language; keeps unsaved edits on the page
- setLang(LANG==='ar'?'en':'ar');applyI18n();$('#lang').textContent=t('switch');
- $$('[data-stock]').forEach(b=>b._title());
- $$('#gold,[data-stock]').forEach(b=>b._q?render(b):($('[data-live]',b).textContent=t(b.id==='gold'?'live_loading':'live_hint')));
- status(dirty?t('unsaved'):t('ready'));
-};
-$('#dashTab').onclick=e=>{e.target.textContent=t('loading_prices')};
-
-// Show live price, P/L and clickable suggestions for one card
-async function loadQuote(box,ticker,currency){
- const live=$('[data-live]',box), badge=$('[data-verdict]',box);
- box._q=null;badge.textContent='';
- if(!ticker){live.textContent=t('live_hint');return}
- live.textContent=t('live_loading');
+// ---------- one holding row ----------
+function makeRow(h){ // h: {kind:'gold'|'stock', ticker,name,currency,qty,buy_price,alert_above,alert_below,move_alert_sar, draft}
+ const el=$('#tpl').content.firstElementChild.cloneNode(true);
+ el._h=h;applyI18n(el);
+ const gold=h.kind==='gold';
+ $('[data-cur-wrap]',el).hidden=gold;$('[data-move-wrap]',el).hidden=!gold;$('[data-remove]',el).hidden=gold;
+ for(const i of $$('[data-f]',el)){const v=h[i.dataset.f];if(v!=null&&v!=='')i.value=v}
+ if(h.draft)el.classList.add('draft');
+ el.addEventListener('input',()=>{el.classList.remove('draft');$('[data-err]',el).hidden=true;$$('input',el).forEach(i=>i.classList.remove('bad'));touch();paint(el);summary()});
+ $('[data-f=currency]',el).addEventListener('change',()=>{touch();paint(el);summary()});
+ $('[data-remove]',el).onclick=()=>{if(confirm(t('h_rm',{n:h.name||h.ticker}))){el.remove();touch();summary();emptyState()}};
+ el.addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;c.parentElement.previousElementSibling.value=c.dataset.v;touch()});
+ labels(el);
+ return el;
+}
+function labels(el){
+ const h=el._h,gold=h.kind==='gold',c=gold?'SAR':$('[data-f=currency]',el).value;
+ $('[data-title]',el).textContent=gold?t('h_gold'):(h.name||h.ticker);
+ $('[data-sub]',el).innerHTML=gold?esc(t('h_gold_sub')):`<bdi class="num">${esc(h.ticker)}</bdi>  ${h.ticker.endsWith('.SR')?t('h_saudi'):t('h_us')}`;
+ $('[data-qty-label]',el).textContent=gold?t('h_grams'):t('h_shares');
+ $('[data-buy-label]',el).textContent=t('h_buy',{u:cur(c)});
+ if(h.draft&&el.classList.contains('draft')){const e=$('[data-err]',el);e.textContent=t('h_draft');e.hidden=false;e.style.color='var(--accent)'}
+}
+async function load(el){
+ const h=el._h;
  try{
-  const r=await fetch(`/api/quote?ticker=${encodeURIComponent(ticker)}&currency=${currency}`);
-  if(!r.ok)throw 0;
-  box._q=await r.json();
- }catch{live.innerHTML=`<span class="neg">${esc(t('live_bad',{t:ticker}))}</span>`;return}
- render(box);
+  const r=await fetch(`/api/quote?ticker=${encodeURIComponent(h.kind==='gold'?'GOLD':h.ticker)}&currency=${h.currency||'USD'}`);
+  if(!r.ok)throw 0;el._q=await r.json();
+ }catch{el._q=null;['today','prev','change'].forEach(k=>$(`[data-${k}]`,el).textContent='-');
+  const e=$('[data-err]',el);e.textContent=t('h_badticker',{t:h.ticker});e.hidden=false;e.style.color='';return}
+ paint(el);summary();
 }
-function render(box){
- const q=box._q;if(!q)return;
- const v=read(box), buy=parseFloat(v.buy_price), qty=parseFloat(v.grams??v.shares);
- const pl=(q.price-buy)*qty, plp=(q.price/buy-1)*100;
- $('[data-live]',box).innerHTML=`<span>${t('now')} <b>${f(q.price)}</b></span>
-  <span class="${q.change_pct>=0?'pos':'neg'}">${q.change_pct>=0?'▲':'▼'} <span dir="ltr">${f(q.change_pct)}%</span> ${t('today')}</span>
-  ${isNaN(pl)?'':`<span>${t('your_pl')}: <b class="${pl>=0?'pos':'neg'}" dir="ltr">${pl>=0?'+':''}${f(pl,0)}</b> <span class="${plp>=0?'pos':'neg'}" dir="ltr">(${f(plp,1)}%)</span></span>`}
-  <span class="note">${t('range',{lo:f(q.lo),hi:f(q.hi)})} · ${t('trend_'+q.trend_code)}</span>
-  <span class="note" style="flex-basis:100%">${timeLine(q)}</span>`;
- const b=$('[data-verdict]',box);b.textContent=t('verdict_'+q.verdict_code);b.className='badge '+q.tone;
- // Only suggest levels that are actually above / below today's price
- const chips=(list,keep)=>list.filter(([,v])=>!isNaN(v)&&keep(v))
-  .map(([k,v])=>`<button type="button" class="chip" data-v="${r2(v)}">${t(k)}: ${f(v)}</button>`).join('')
-  +`<button type="button" class="chip" data-v="">${t('c_auto')}</button>`;
- $('[data-chips="above"]',box).innerHTML=chips([['c_buy5',buy*1.05],['c_buy10',buy*1.1],['c_hi_band',q.band_upper],['c_hi2',q.hi],['c_now5',q.price*1.05]],v=>v>q.price);
- $('[data-chips="below"]',box).innerHTML=chips([['c_buy',buy],['c_buy_m5',buy*.95],['c_lo_band',q.band_lower],['c_now_m5',q.price*.95]],v=>v<q.price);
+function values(el){
+ const q=el._q,qty=parseFloat($('[data-f=qty]',el).value),buy=parseFloat($('[data-f=buy_price]',el).value);
+ const c=el._h.kind==='gold'?'SAR':$('[data-f=currency]',el).value;
+ if(!q)return{c,qty,buy};
+ return{c,qty,buy,price:q.price,prev:q.prev,value:q.price*qty,cost:buy*qty,pl:(q.price-buy)*qty,plp:(q.price/buy-1)*100};
 }
-document.addEventListener('click',e=>{
- const c=e.target.closest('.chip');if(!c)return;
- c.parentElement.previousElementSibling.value=c.dataset.v;markDirty();
+function paint(el){
+ const q=el._q;if(!q)return;const v=values(el);
+ $('[data-today]',el).textContent=num(q.price);
+ $('[data-prev]',el).textContent=num(q.prev);
+ const ch=$('[data-change]',el);ch.textContent=`${signed(q.price-q.prev)}  ${signed(q.change_pct,1)}%`;ch.className='v num '+(q.change_pct>=0?'pos':'neg');
+ const pl=$('[data-pl]',el),sub=$('[data-plsub]',el);
+ if(isNaN(v.pl)){pl.textContent='-';pl.className='v';sub.textContent=''}
+ else{pl.innerHTML=`${N(signed(v.pl,0))} ${cur(v.c)}`;pl.className='v '+(v.pl>=0?'pos':'neg');sub.innerHTML=`${N(signed(v.plp,1)+'%')}   ${t('h_cost',{c:cur(v.c),v:N(num(v.cost,0))})}`}
+ const b=$('[data-verdict]',el);b.textContent=t('verdict_'+q.verdict_code);b.className='verdict '+q.tone;b.hidden=false;
+ $('[data-time]',el).textContent=timeLine(q);
+ const chips=(list,keep)=>list.filter(([,x])=>!isNaN(x)&&keep(x)).map(([k,x])=>`<button type="button" class="chip num" data-v="${Math.round(x*100)/100}">${t(k)} ${num(x)}</button>`).join('');
+ $('[data-chips=above]',el).innerHTML=chips([['c_buy10',v.buy*1.1],['c_hi_band',q.band_upper],['c_now5',q.price*1.05]],x=>x>q.price);
+ $('[data-chips=below]',el).innerHTML=chips([['c_buy',v.buy],['c_lo_band',q.band_lower],['c_now_m5',q.price*.95]],x=>x<q.price);
+}
+function summary(){
+ const tot={SAR:{v:0,pl:0,cost:0},USD:{v:0,pl:0,cost:0}};let any=false;
+ for(const el of $$('.holding')){const v=values(el);if(isNaN(v.value)||isNaN(v.pl))continue;any=true;tot[v.c].v+=v.value;tot[v.c].pl+=v.pl;tot[v.c].cost+=v.cost}
+ if(!any)return;
+ const line=(o,c)=>`<span class="${o.pl>=0?'pos':'neg'}">${N(signed(o.pl,0))} ${cur(c)}${o.cost?`  ${N(signed(o.pl/o.cost*100,1)+'%')}`:''}</span>`;
+ $('#sumSar').textContent=num(tot.SAR.v,0);$('#sumSarPl').innerHTML=line(tot.SAR,'SAR');
+ $('#sumUsd').textContent=num(tot.USD.v,0);$('#sumUsdPl').innerHTML=line(tot.USD,'USD');
+ const all={v:tot.SAR.v+tot.USD.v*USD_SAR,pl:tot.SAR.pl+tot.USD.pl*USD_SAR,cost:tot.SAR.cost+tot.USD.cost*USD_SAR};
+ $('#sumTotal').textContent=num(all.v,0);$('#sumTotalPl').innerHTML=line(all,'SAR');
+}
+function emptyState(){
+ const stocks=$$('.holding').filter(e=>e._h.kind==='stock');let e=$('#empty');
+ if(!stocks.length&&!e){e=document.createElement('div');e.id='empty';e.className='emptystate';e.textContent=t('h_empty');$('#holdings').append(e)}
+ if(stocks.length&&e)e.remove();
+}
+function addStock(h){$('#empty')?.remove();const el=makeRow({kind:'stock',currency:'USD',...h});$('#holdings').append(el);load(el);return el}
+
+// ---------- search to add ----------
+let timer;
+$('#add').addEventListener('input',()=>{
+ clearTimeout(timer);const q=$('#add').value.trim(),box=$('#results');
+ if(q.length<2){box.hidden=true;return}
+ box.hidden=false;box.innerHTML=`<div class="empty">${t('search_wait')}</div>`;
+ timer=setTimeout(async()=>{
+  let rows=[];try{rows=await (await fetch('/api/search?q='+encodeURIComponent(q))).json()}catch{}
+  if($('#add').value.trim()!==q)return;
+  box.innerHTML=rows.length?'':`<div class="empty">${t('search_none')}</div>`;
+  for(const r of rows){const b=document.createElement('button');b.type='button';
+   b.innerHTML=`<span><b class="num">${esc(r.ticker)}</b>  ${esc(r.name)}</span><small>${r.currency==='SAR'?t('h_saudi'):t('h_us')}</small>`;
+   b.onmousedown=e=>{e.preventDefault();box.hidden=true;$('#add').value='';
+    const dup=$$('.holding').find(x=>x._h.ticker===r.ticker);
+    if(dup){status(t('h_dupe',{t:r.ticker}),'err');dup.scrollIntoView({block:'center'});return}
+    const el=addStock({ticker:r.ticker,name:r.name,currency:r.currency,draft:true});labels(el);$('[data-f=qty]',el).focus();touch()};
+   box.append(b)}
+ },350);
 });
+$('#add').addEventListener('blur',()=>setTimeout(()=>$('#results').hidden=true,150));
 
-function addStock(s={currency:'SAR'}){
- const box=$('#stockTpl').content.firstElementChild.cloneNode(true);
- applyI18n(box);fill(box,s);$('#stocks').append(box);
- box._title=()=>$('[data-title]',box).textContent=read(box).name||read(box).ticker||t('new_stock');box._title();
- const refresh=()=>{const v=read(box);if(v.ticker.toUpperCase().endsWith('.SR'))$('[data-f=currency]',box).value='SAR';loadQuote(box,v.ticker.toUpperCase(),$('[data-f=currency]',box).value)};
- // Search by company name: type -> pick from the list -> ticker, name and currency are filled in
- const tick=$('[data-f=ticker]',box), list=$('.results',box);
- let timer, picked=false;
- const pick=r=>{tick.value=r.ticker;$('[data-f=name]',box).value=r.name;$('[data-f=currency]',box).value=r.currency;
-  list.hidden=true;picked=true;box._title();markDirty();refresh()};
- tick.addEventListener('input',()=>{
-  clearTimeout(timer);picked=false;const q=tick.value.trim();
-  if(q.length<2){list.hidden=true;return}
-  list.hidden=false;list.innerHTML=`<div class="empty">${t('search_wait')}</div>`;
-  timer=setTimeout(async()=>{
-   let rows=[];try{rows=await (await fetch('/api/search?q='+encodeURIComponent(q))).json()}catch{}
-   if(tick.value.trim()!==q)return; // user kept typing
-   list.innerHTML=rows.length?'':`<div class="empty">${t('search_none')}</div>`;
-   rows.forEach(r=>{const b=document.createElement('button');b.type='button';
-    b.innerHTML=`<span><b dir="ltr">${esc(r.ticker)}</b> — ${esc(r.name)}</span><small>${t(r.currency==='SAR'?'m_saudi':'m_us')}</small>`;
-    b.onmousedown=e=>{e.preventDefault();pick(r)};list.append(b)});
-  },350);
- });
- tick.addEventListener('blur',()=>setTimeout(()=>{list.hidden=true},150));
- tick.addEventListener('change',()=>{if(!picked)refresh()});
- $('[data-f=currency]',box).addEventListener('change',refresh);
- box.addEventListener('input',()=>{box._title();render(box)});
- $('[data-remove]',box).onclick=()=>{if(confirm(t('confirm_remove',{n:read(box).name||read(box).ticker||t('new_stock')}))){box.remove();markDirty()}};
- if(s.ticker)refresh();
- return box;
-}
-$('#add').onclick=()=>{$('[data-f=ticker]',addStock()).focus()};
-$('#gold').addEventListener('input',()=>render($('#gold')));
-document.addEventListener('input',markDirty);
-$('#alertLang').addEventListener('change',markDirty);
-window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
-
+// ---------- save ----------
 $('#save').onclick=async()=>{
- const body={gold:read($('#gold')),stocks:$$('[data-stock]').map(read),
-  alerts:{daily_move_percent:$('#daily').value.trim(),language:$('#alertLang').value}};
- const btn=$('#save');btn.disabled=true;status(t('saving'));
+ let bad=null;
+ for(const el of $$('.holding')){
+  const qty=$('[data-f=qty]',el),buy=$('[data-f=buy_price]',el),miss=[qty,buy].filter(i=>!i.value.trim());
+  if(miss.length){miss.forEach(i=>i.classList.add('bad'));const e=$('[data-err]',el);e.textContent=t('h_need');e.style.color='';e.hidden=false;bad=bad||el}
+ }
+ if(bad){bad.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});status(t('h_need'),'err');return}
+ const read=el=>Object.fromEntries($$('[data-f]',el).map(i=>[i.dataset.f,i.value.trim()]));
+ const g=read($$('.holding').find(e=>e._h.kind==='gold'));
+ const body={gold:{grams:g.qty,buy_price:g.buy_price,alert_above:g.alert_above,alert_below:g.alert_below,move_alert_sar:g.move_alert_sar||'10'},
+  stocks:$$('.holding').filter(e=>e._h.kind==='stock').map(el=>{const v=read(el);return{ticker:el._h.ticker,name:el._h.name,shares:v.qty,buy_price:v.buy_price,currency:v.currency,alert_above:v.alert_above,alert_below:v.alert_below}}),
+  alerts:{daily_move_percent:$('#daily').value.trim()||'2',language:$('#alertLang').value}};
+ const btn=$('#save');btn.disabled=true;status(t('h_saving'));
  try{
-  const r=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const d=await r.json();
-  if(!r.ok)status('⚠ '+d.error,'err');
-  else{dirty=false;d.github?status(t('saved_both'),'ok'):status(t('saved_pc',{e:d.error||'?'}),'err')}
- }catch{status(t('no_server'),'err')}
+  const r=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();
+  if(!r.ok)status(d.error,'err');else{dirty=false;d.github?status(t('h_saved'),'ok'):status(t('h_savedpc',{e:d.error||'?'}),'err')}
+ }catch{status(t('h_noserver'),'err')}
  btn.disabled=false;
 };
 
-setInterval(()=>fetch('/api/ping').catch(()=>{}),20000); // keeps the app program running while open
-status(t('loading'));
+// ---------- language, keep-alive, start ----------
+function relabel(){applyI18n();$('#lang').textContent=t('switch');$$('.holding').forEach(el=>{applyI18n(el);labels(el);paint(el)});summary();emptyState();status(dirty?t('h_unsaved'):t('h_ready'))}
+$('#lang').onclick=()=>{setLang(LANG==='ar'?'en':'ar');relabel()};
+$('#dashTab').onclick=e=>{e.target.textContent=t('loading_prices')};
+document.addEventListener('input',e=>{if(e.target.id==='daily')touch()});
+$('#alertLang').addEventListener('change',touch);
+window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
+setInterval(()=>fetch('/api/ping').catch(()=>{}),20000);
+
+applyI18n();$('#lang').textContent=t('switch');status(t('h_loading'));
 (async()=>{
  const s=await (await fetch('/api/settings')).json();
- fill($('#gold'),s.gold);$('#daily').value=s.alerts.daily_move_percent||'2';
- $('#alertLang').value=s.alerts.language||'en';
- s.stocks.forEach(addStock);
- status(t('ready'));
- loadQuote($('#gold'),'GOLD','SAR');
+ const gold=makeRow({kind:'gold',ticker:'GOLD',qty:s.gold.grams,buy_price:s.gold.buy_price,alert_above:s.gold.alert_above,alert_below:s.gold.alert_below,move_alert_sar:s.gold.move_alert_sar||'10'});
+ $('#holdings').append(gold);load(gold);
+ for(const x of s.stocks)addStock({ticker:x.ticker,name:x.name,currency:x.currency||'USD',qty:x.shares,buy_price:x.buy_price,alert_above:x.alert_above,alert_below:x.alert_below});
+ // Stocks you asked to add: ready for your shares and buy price (not saved until you fill them in)
+ const have=new Set(s.stocks.map(x=>x.ticker.toUpperCase()));
+ for(const [tk,nm] of [['LUNR','Intuitive Machines'],['ZETA','Zeta Global'],['SPCX','SpaceX']])
+  if(!have.has(tk)){const el=addStock({ticker:tk,name:nm,currency:'USD',draft:true});labels(el)}
+ $('#daily').value=s.alerts.daily_move_percent||'2';$('#alertLang').value=s.alerts.language||'ar';
+ emptyState();status(t('h_ready'));
 })();
 </script></body></html>

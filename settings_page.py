@@ -127,7 +127,7 @@ def quote(ticker, currency):
         asset = {"key": ticker, "ticker": ticker, "name": ticker, "unit": currency + "/share", "currency": currency}
     asset.update(qty=0, qty_label="", buy=None, above=None, below=None)
     a = gold_hunt.analyse(asset, gold_hunt.fetch(asset))
-    keep = ["price", "change_pct", "hi", "hi_date", "lo", "lo_date", "pct_rank", "rsi",
+    keep = ["price", "prev", "change_pct", "hi", "hi_date", "lo", "lo_date", "pct_rank", "rsi",
             "sma50", "sma200", "band_upper", "band_lower", "verdict", "tone", "trend",
             "verdict_code", "trend_code", "price_time", "pulled_at"]
     return {k: a[k] for k in keep}
@@ -149,9 +149,20 @@ def search(query):
 
 
 # ---------------------------------------------------------------- web server
+def no_nan(v):
+    """JSON has no NaN (e.g. a 200-day average for a stock listed months ago): send null instead."""
+    if isinstance(v, float) and v != v:
+        return None
+    if isinstance(v, dict):
+        return {k: no_nan(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [no_nan(x) for x in v]
+    return v
+
+
 class Handler(BaseHTTPRequestHandler):
     def send(self, code, body, ctype="application/json"):
-        data = body if isinstance(body, bytes) else json.dumps(body).encode()
+        data = body if isinstance(body, bytes) else json.dumps(no_nan(body)).encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype + "; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
