@@ -6,3 +6,7 @@ alerts_state.json
 *.lnk
 widget_state.json
 chart.png
+dist/
+gold_ref.json
+data_dir.txt
+news_cache.json

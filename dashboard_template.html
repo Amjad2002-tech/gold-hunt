@@ -31,11 +31,46 @@ h1{margin:0;font-size:26px}h1 span{color:var(--gold)}.sub{color:var(--mute);marg
 .top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}.top .tabs{margin:0}
 .lang{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font:inherit;font-weight:600;cursor:pointer}
 [dir=rtl] ul{padding-left:0;padding-right:20px}
+.livebar{display:flex;align-items:center;gap:8px;color:var(--mute);font-size:13px;margin:-12px 0 16px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--a200);flex:none}
+.dot.on{background:var(--up);animation:pulse 1.6s infinite}.dot.err{background:var(--down)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--up) 60%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.flash{animation:fl 1s}@keyframes fl{0%{color:var(--gold)}100%{}}
+.rng{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:16px}.rng small{color:var(--mute);margin-inline-end:4px}
+.rng button{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:3px 11px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.rng button.on{background:var(--gold);border-color:var(--gold);color:#fff}
+.bh{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
+.bh h3{margin:0 0 8px;font-size:15px;color:var(--gold)}
+.bhtop{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sbar{height:8px;border-radius:4px;background:linear-gradient(90deg,var(--down),var(--mid),var(--up));position:relative;margin:10px 0 2px}
+.sbar i{position:absolute;top:-4px;width:4px;height:16px;background:var(--ink);border-radius:2px}
+.bhcols{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-top:10px}@media(max-width:760px){.bhcols{grid-template-columns:1fr}}
+table.ft{width:100%;border-collapse:collapse;font-size:13px}table.ft th,table.ft td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:start}
+table.ft th{color:var(--mute);font-weight:600}.kv{font-size:13px}.kv div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding:4px 0}.kv span{color:var(--mute)}
+.disc{font-size:12px;color:var(--mute);font-style:italic;margin-top:8px}
+.ol{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
+.ol>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.ol>summary::-webkit-details-marker{display:none}
+.ol>summary h3{margin:0;font-size:15px;color:var(--gold)}.ol>summary:before{content:'\25B8';color:var(--gold);transition:transform .15s}
+[dir=rtl] .ol>summary:before{content:'\25C2'}.ol[open]>summary:before{transform:rotate(90deg)}[dir=rtl] .ol[open]>summary:before{transform:rotate(-90deg)}
+.odds{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:12px 0}
+.odds div{border:1px solid var(--line);border-radius:10px;padding:10px}.odds small{display:block;color:var(--mute);font-size:12px}.odds b{font-size:20px}
+.odds .wide{grid-column:span 2}@media(max-width:420px){.odds .wide{grid-column:auto}}
+.olcols{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:760px){.olcols{grid-template-columns:1fr}}
+.ol h4{margin:14px 0 4px;font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}
+.fcwrap{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:6px}
+.fcwrap table.ft th{position:sticky;top:0;background:var(--card);z-index:1}.fcwrap td,.fcwrap th{white-space:nowrap}
+.fcwrap td.num{font-variant-numeric:tabular-nums}
+.p-hi{background:color-mix(in srgb,var(--up) 16%,transparent);color:var(--up)}.p-lo{background:color-mix(in srgb,var(--down) 14%,transparent);color:var(--down)}
+.news{list-style:none;padding:0;margin:6px 0 0}.news li{display:flex;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
+.news a{color:var(--ink);text-decoration:none}.news a:hover{color:var(--gold);text-decoration:underline}
+.sd{width:9px;height:9px;border-radius:50%;flex:none;background:var(--a200)}.sd.positive{background:var(--up)}.sd.negative{background:var(--down)}
+[dir=rtl] .news{padding-right:0}
 </style><script src="i18n.js"></script></head><body><div class="wrap">
 <div class="top"><nav class="tabs" id="tabs" hidden><a class="on" href="/dashboard" data-i18n="tab_dash"></a><a href="/" data-i18n="tab_settings"></a></nav>
 <button class="lang" id="lang"></button></div>
 <h1>Gold <span>Hunt</span></h1>
 <div class="sub" id="sub"></div>
+<div class="livebar"><span class="dot" id="dot"></span><span id="livetxt"></span></div>
 <div class="total" id="total"></div>
 <div id="cards"></div>
 <p class="note" data-i18n="howto"></p>
@@ -58,41 +93,190 @@ const cur=c=>t('cur_'+c)===('cur_'+c)?c:t('cur_'+c);
 const unit=a=>a.key==='GOLD'?t('unit_gram'):t('unit_share',{c:cur(a.currency)});
 const nameOf=a=>a.key==='GOLD'?t('gold_name'):a.name;
 const MN=t('months');
-const tot={};D.forEach(a=>{const s=tot[a.currency]??={v:0,pl:0};s.v+=a.value;s.pl+=a.pl||0});
-document.getElementById('total').innerHTML=Object.entries(tot).map(([c,s])=>`<div><small>${t('value',{c:cur(c)})}</small><b>${f(s.v,0)}</b></div><div><small>${t('pl',{c:cur(c)})}</small><b class="${cls(s.pl)}">${s.pl>=0?'+':''}${f(s.pl,0)}</b></div>`).join('');
+const store={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+const sgn=v=>v==null?'–':(v>0?'+':'')+f(v,1);
+function renderTotals(){
+ const tot={};D.forEach(a=>{const s=tot[a.currency]??={v:0,pl:0};s.v+=a.value;s.pl+=a.pl||0});
+ document.getElementById('total').innerHTML=Object.entries(tot).map(([c,s])=>`<div><small>${t('value',{c:cur(c)})}</small><b>${f(s.v,0)}</b></div><div><small>${t('pl',{c:cur(c)})}</small><b class="${cls(s.pl)}">${s.pl>=0?'+':''}${f(s.pl,0)}</b></div>`).join('');
+}
+renderTotals();
+// ---- chart ranges (months back from the last date)
+const RANGES=[['1m',1],['3m',3],['1y',12],['2y',24],['5y',60]];
+const spanMonths=s=>s.dates.length?(new Date(s.dates.at(-1))-new Date(s.dates[0]))/2.63e9:0;
+function sliceFrom(s,months){const end=new Date(s.dates.at(-1));end.setMonth(end.getMonth()-months);
+ const iso=end.toISOString().slice(0,10);const k=s.dates.findIndex(d=>d>=iso);return k<0?0:k}
+// ---- behaviour (history-based) panel
+const SIGNED=new Set(['bh_med60','bh_mom_strong','bh_mom_weak','bh_season_good','bh_season_bad','bh_pos_breakeven']);
+const TONE={buy_zone:'low',accumulate:'low',hold:'mid',take_profit:'high',sell_zone:'high'};
+function bhPanel(b){
+ if(!b)return'';
+ const rs=(b.reasons||[]).map(([k,v])=>`<li>${esc(t(k,{v:SIGNED.has(k)?sgn(v):f(v,Number.isInteger(v)?0:1)}))}</li>`).join('');
+ const H=(b.similar||{}).horizons||{};
+ const rows=['20','60'].filter(h=>H[h]).map(h=>{const x=H[h];return`<tr><td>${t('bh_h',{h})}</td>
+  <td class="${cls(x.median_pct)}"><b>${sgn(x.median_pct)}%</b></td><td>${t('bh_cell',{p:f(x.hit_rate,0),n:x.samples,i:x.independent})}</td>
+  <td class="note">${sgn(x.base_median_pct)}% · ${f(x.base_hit_rate,0)}%</td></tr>`}).join('');
+ const lv=(arr,cls2)=>arr&&arr.length?arr.slice(0,2).map(l=>`<b>${f(l.price)}</b> <span class="${cls2}">(${sgn(l.dist_pct)}%)</span>`).join(' · '):t('bh_none');
+ const v=b.volatility,dd=b.drawdown;
+ return`<div class="bh"><h3>${t('bh_title')}</h3>
+ <div class="bhtop"><span class="badge ${TONE[b.stance]||'mid'}">${t('stance_'+b.stance)}</span>
+ <span class="note">${t('conf_'+b.confidence)} · ${t('bh_score',{v:(b.score>0?'+':'')+b.score})}</span></div>
+ <div class="sbar" dir="ltr"><i style="left:calc(${(b.score+100)/2}% - 2px)"></i></div>
+ <div class="range" dir="ltr"><span>-100</span><span>0</span><span>+100</span></div>
+ <div class="bhcols"><div>${rs?`<ul>${rs}</ul>`:''}
+ ${rows?`<div class="note" style="margin-top:8px">${t('bh_after')} · ${t('bh_match',{m:t('match_'+b.similar.match)})}</div>
+ <table class="ft"><tr><th></th><th>${t('bh_median')}</th><th>${t('bh_up')}</th><th>${t('bh_all')}</th></tr>${rows}</table>`:''}</div>
+ <div class="kv">${b.levels?`<div><span>${t('bh_resist')}</span><b dir="ltr">${lv(b.levels.resistance,'neg')}</b></div>
+ <div><span>${t('bh_support')}</span><b dir="ltr">${lv(b.levels.support,'pos')}</b></div>`:''}
+ ${v?`<div><span>${t('bh_vol')}</span><b>${t('bh_vol_v',{v:f(v.annual_pct,0),d:f(v.typical_day_pct,1)})}</b></div>`:''}
+ ${dd?`<div><span>${t('bh_dd')}</span><b>${t('bh_dd_v',{v:f(dd.current_pct,1),m:f(dd.max_pct,1)})}</b></div>`:''}
+ ${b.years?`<div><span></span><span>${t('bh_years',{y:f(b.years,1),d:b.from})}</span></div>`:''}</div></div>
+ <div class="disc">${t('bh_disclaimer')}</div></div>`;
+}
+// ---- "Should I buy?" outlook panel (odds from history, not advice)
+const OLTONE={favourable:'low',neutral:'mid',unfavourable:'high'};
+const pctCls=v=>v==null?'':v>=55?'p-hi':v<=45?'p-lo':'';
+const num=(v,d=2)=>`<span dir="ltr">${f(v,d)}</span>`;
+const pc=v=>v==null?'–':`<span dir="ltr">${f(v,1)}%</span>`;
+function olReason([k,v]){
+ if(k.startsWith('bh_'))return t(k,{v:SIGNED.has(k)?sgn(v):f(v,Number.isInteger(v)?0:1)});
+ return t(k,{v:k==='ol_r_behaviour'?(v>0?'+':'')+v:(typeof v==='number'?f(v,Number.isInteger(v)?0:1):v)});
+}
+function newsTime(x){if(x==null)return'';const d=typeof x==='number'||/^\d+$/.test(x)?new Date(Number(x)*(Number(x)<1e12?1000:1)):new Date(x);
+ return isNaN(d)?'':d.toLocaleString(LANG==='ar'?'ar-SA-u-nu-latn-ca-gregory':'en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
+function olPanel(a){
+ const o=a.outlook;if(!o)return'';
+ const S=o.summary,F=o.forecast,N=o.news;
+ let h=`<details class="ol" id="ol${a._i}"><summary><h3>${t('ol_title')}</h3>${S?`<span class="badge ${OLTONE[S.lean]||'mid'}">${t('ol_lean_'+S.lean)}</span>
+  <span class="note">${t('conf_'+S.confidence)}</span>`:`<span class="note">${t('ol_open')}</span>`}</summary>`;
+ if(o.note)h+=`<div class="note" style="margin-top:8px">${t(o.note)}</div>`;
+ if(S){
+  const u=S.odds_up||{},r=S.range_1m;
+  h+=`<div class="note" style="margin-top:8px">${t('ol_score',{v:(S.score>0?'+':'')+S.score})}</div>
+  <div class="sbar" dir="ltr"><i style="left:calc(${(S.score+100)/2}% - 2px)"></i></div>
+  <div class="range" dir="ltr"><span>-100</span><span>0</span><span>+100</span></div>
+  <h4>${t('ol_odds')}</h4><div class="odds">${['1w','1m','3m'].map(k=>`<div><small>${t('ol_'+k)}</small><b class="${u[k]>=50?'pos':'neg'}">${pc(u[k])}</b></div>`).join('')}
+  ${r?`<div class="wide"><small>${t('ol_range')} · ${t('ol_by',{d:r.date})}</small><b>${num(r.p10)} – ${num(r.p90)}</b> <span class="note">· p50 ${num(r.p50)}</span></div>`:''}</div>
+  <div class="olcols"><div><h4 class="pos">${t('ol_for')}</h4>${(S.reasons_for||[]).length?`<ul>${S.reasons_for.map(x=>`<li>${esc(olReason(x))}</li>`).join('')}</ul>`:`<div class="note">${t('bh_none')}</div>`}</div>
+  <div><h4 class="neg">${t('ol_against')}</h4>${(S.reasons_against||[]).length?`<ul>${S.reasons_against.map(x=>`<li>${esc(olReason(x))}</li>`).join('')}</ul>`:`<div class="note">${t('bh_none')}</div>`}</div></div>`;
+  if(S.parts)h+=`<div class="note" style="margin-top:6px">${t('ol_parts',{b:sgn(S.parts.behaviour),f:sgn(S.parts.forecast),n:sgn(S.parts.news)})}</div>`;
+ }
+ if(F&&F.rows&&F.rows.length){
+  const hasBuy=F.buy!=null;
+  h+=`<h4>${t('ol_fan')}</h4><div class="cbox"><canvas id="fan${a._i}"></canvas></div>
+  <h4>${t('ol_table',{n:F.rows.length})}</h4><div class="fcwrap"><table class="ft"><tr><th>${t('c_date')}</th><th>${t('c_days')}</th><th>${t('c_up')}</th><th>${t('c_lo')}</th><th>${t('c_mid')}</th><th>${t('c_hi')}</th><th>${t('c_pop')}</th><th>${t('c_dip')}</th>${hasBuy?`<th>${t('c_buy')}</th>`:''}</tr>
+  ${F.rows.map(x=>`<tr><td><span dir="ltr">${esc(x.date)}</span></td><td class="num">${num(x.h,0)}</td><td class="num ${pctCls(x.prob_up)}">${pc(x.prob_up)}</td>
+   <td class="num">${num(x.p10)}</td><td class="num"><b>${num(x.p50)}</b></td><td class="num">${num(x.p90)}</td>
+   <td class="num ${x.touch_up5>=50?'p-hi':''}">${pc(x.touch_up5)}</td><td class="num ${x.touch_dn5>=50?'p-lo':''}">${pc(x.touch_dn5)}</td>
+   ${hasBuy?`<td class="num ${pctCls(x.prob_above_buy)}">${pc(x.prob_above_buy)}</td>`:''}</tr>`).join('')}</table></div>
+  <div class="note" style="margin-top:6px">${t('ol_method',{p:F.paths,b:F.block_days,y:f((F.history_days||0)/252,1)})}</div>`;
+ }
+ if(N){
+  const it=N.items||[];
+  h+=`<h4>${t('ol_news')}</h4><div class="note">${t('news_mood',{m:t('mood_'+(N.mood||'neutral')),n:N.count||0})}</div>`;
+  if(it.length)h+=`<ul class="news">${it.map(x=>{const ok=/^https?:\/\//i.test(x.link||'');const ti=esc(x.title||'');const lb=['positive','negative'].includes(x.label)?x.label:'neutral';
+   return`<li><span class="sd ${lb}" title="${t('mood_'+lb)}"></span><div>${ok?`<a href="${esc(x.link)}" target="_blank" rel="noopener noreferrer">${ti}</a>`:ti}
+   <div class="note">${esc(x.publisher||'')}${x.time?' · '+newsTime(x.time):''}</div></div></li>`}).join('')}</ul>`;
+  else h+=`<div class="note">${N.error?t('news_err',{e:esc(N.error)}):t('news_none')}</div>`;
+ }
+ return h+`<div class="disc">${t('ol_disclaimer')}</div></details>`;
+}
+function fanChart(a){
+ const F=a.outlook&&a.outlook.forecast,el=document.getElementById('fan'+a._i);if(!F||!el||!F.rows.length)return;
+ const s=a.series,from=sliceFrom(s,3),hd=s.dates.slice(from),hc=s.close.slice(from),n=hd.length,last=hc[n-1];
+ const pad=v=>Array(n-1).fill(null).concat([last]).concat(v);
+ const labels=hd.concat(F.rows.map(r=>r.date)),grid={color:css('--line')},tick={color:css('--mute')};
+ new Chart(el,{type:'line',data:{labels,datasets:[
+  {label:t('s_price'),data:hc,borderColor:css('--gold'),borderWidth:2,pointRadius:0},
+  {label:t('s_p90'),data:pad(F.rows.map(r=>r.p90)),borderColor:css('--up'),borderWidth:1,pointRadius:0,fill:'+1',backgroundColor:`color-mix(in srgb, ${css('--gold')} 22%, transparent)`},
+  {label:t('s_p10'),data:pad(F.rows.map(r=>r.p10)),borderColor:css('--down'),borderWidth:1,pointRadius:0},
+  {label:t('s_p50'),data:pad(F.rows.map(r=>r.p50)),borderColor:css('--gold'),borderDash:[5,4],borderWidth:1.6,pointRadius:0},
+  ...(F.buy!=null?[{label:t('s_buy'),data:labels.map(()=>F.buy),borderColor:css('--ink'),borderDash:[2,4],borderWidth:1,pointRadius:0}]:[])]},
+  options:{maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{rtl:LANG==='ar',labels:{color:css('--ink'),boxWidth:12}}},
+  scales:{x:{ticks:{...tick,maxTicksLimit:8},grid},y:{ticks:tick,grid}}}});
+}
+const CH=[];
+function head(a){return`<h2>${esc(nameOf(a))} <span class="note">${esc(a.ticker)}</span></h2>
+ <div class="price" id="pr${a._i}">${f(a.price)} <span class="note">${unit(a)}</span></div>
+ <div class="chg ${cls(a.change_pct)}">${a.change_pct>=0?'▲':'▼'} ${f(a.change_pct)}% ${t('today')} · ${t('trend_'+a.trend_code)}</div>
+ <div class="note">${a.live?liveLine(a):timeLine(a)}</div>`}
+function liveLine(a){const q=a.live,closed=Date.now()-new Date(q.time)>20*60*1000&&q.source!=='dewanaldahab.com';
+ return`${closed?'⚪ '+t('mkt_closed'):'🟢 '+t('live_on')} · ${fmtTime(q.time)} · ${t('src',{s:esc(q.source)})} · ${q.delay_min?t('delay_min',{m:q.delay_min}):t('delay_rt')}`}
 D.forEach((a,i)=>{
+ a._i=i;
  const el=document.createElement('div');el.className='card';
  const reasons=(a.reason_codes||[]).map(([k,v])=>t('reason_'+k,{v}));
- el.innerHTML=`<div class="head"><div><h2>${esc(nameOf(a))} <span class="note">${esc(a.ticker)}</span></h2>
- <div class="price">${f(a.price)} <span class="note">${unit(a)}</span></div>
- <div class="chg ${cls(a.change_pct)}">${a.change_pct>=0?'▲':'▼'} ${f(a.change_pct)}% ${t('today')} · ${t('trend_'+a.trend_code)}</div>
- <div class="note">${timeLine(a)}</div></div>
+ el.innerHTML=`<div class="head"><div id="hd${i}">${head(a)}</div>
  <div><span class="badge ${a.tone}">${t('verdict_'+a.verdict_code)}</span>${reasons.length?`<ul>${reasons.map(r=>`<li>${r}</li>`).join('')}</ul>`:''}</div></div>
  <div class="grid">
  <div><small>${t('you_hold')}</small><b>${f(a.qty,0)} ${t(a.key==='GOLD'?'grams':'shares')}</b></div>
  <div><small>${t('buy_price')}</small><b>${f(a.buy)}</b></div>
- <div><small>${t('profit_loss')}</small><b class="${cls(a.pl)}">${a.pl>=0?'+':''}${f(a.pl,0)} ${cur(a.currency)}</b><br><span class="${cls(a.pl_pct)}">${f(a.pl_pct,1)}%</span></div>
+ <div id="pl${i}">${plCell(a)}</div>
  <div><small>${t('rsi')}</small><b>${f(a.rsi,0)}</b></div>
  <div><small>${t('alert_above')} ${a.above_auto?t('auto'):''}</small><b>${f(a.above)}</b></div>
  <div><small>${t('alert_below')} ${a.below_auto?t('auto'):''}</small><b>${f(a.below)}</b></div></div>
  <small class="note">${t('range_pos',{v:f(a.pct_rank,0)})}</small>
  <div class="bar" dir="ltr"><i style="left:calc(${Math.min(99,a.pct_rank)}% - 2px)"></i></div>
  <div class="range" dir="ltr"><span>${t('lo2',{v:f(a.lo),d:a.lo_date})}</span><span>${t('hi2',{v:f(a.hi),d:a.hi_date})}</span></div>
- <div class="charts" style="margin-top:16px"><div class="cbox"><canvas id="p${i}"></canvas></div><div class="cbox"><canvas id="m${i}"></canvas></div></div>
- <div class="note">${t('month_note')}</div>`;
+ <div class="rng" id="rg${i}"><small>${t('rng_label')}</small>${RANGES.filter(([,m])=>m<=24||spanMonths(a.series)>27)
+  .map(([k])=>`<button data-r="${k}">${t('r_'+k)}</button>`).join('')}</div>
+ <div class="charts" style="margin-top:10px"><div class="cbox"><canvas id="p${i}"></canvas></div><div class="cbox"><canvas id="m${i}"></canvas></div></div>
+ <div class="note">${t('month_note')}</div>${bhPanel(a.behaviour)}${olPanel(a)}`;
  document.getElementById('cards').appendChild(el);
  const s=a.series,grid={color:css('--line')},tick={color:css('--mute')};
- const flat=v=>s.dates.map(()=>v);
- new Chart(document.getElementById('p'+i),{type:'line',data:{labels:s.dates,datasets:[
-  {label:t('s_price'),data:s.close,borderColor:css('--gold'),borderWidth:2,pointRadius:0},
-  {label:t('s_50'),data:s.sma50,borderColor:css('--a50'),borderWidth:1.2,pointRadius:0},
-  {label:t('s_200'),data:s.sma200,borderColor:css('--a200'),borderWidth:1.2,pointRadius:0},
-  ...(a.buy?[{label:t('s_buy'),data:flat(a.buy),borderColor:css('--ink'),borderDash:[5,4],borderWidth:1,pointRadius:0}]:[])]},
-  options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{rtl:LANG==='ar',labels:{color:css('--ink'),boxWidth:12}}},
+ const ch=new Chart(document.getElementById('p'+i),{type:'line',data:{labels:[],datasets:[
+  {label:t('s_price'),data:[],borderColor:css('--gold'),borderWidth:2,pointRadius:0},
+  {label:t('s_50'),data:[],borderColor:css('--a50'),borderWidth:1.2,pointRadius:0},
+  {label:t('s_200'),data:[],borderColor:css('--a200'),borderWidth:1.2,pointRadius:0},
+  ...(a.buy?[{label:t('s_buy'),data:[],borderColor:css('--ink'),borderDash:[5,4],borderWidth:1,pointRadius:0}]:[])]},
+  options:{maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{rtl:LANG==='ar',labels:{color:css('--ink'),boxWidth:12}}},
   scales:{x:{ticks:{...tick,maxTicksLimit:8},grid},y:{ticks:tick,grid}}}});
+ CH[i]=ch;
+ const rg=document.getElementById('rg'+i);
+ const setRange=k=>{const m=(RANGES.find(r=>r[0]===k)||RANGES[3])[1],from=sliceFrom(s,m);a._from=from;
+  ch.data.labels=s.dates.slice(from);
+  ['close','sma50','sma200'].forEach((n,j)=>ch.data.datasets[j].data=s[n].slice(from));
+  if(a.buy)ch.data.datasets[3].data=ch.data.labels.map(()=>a.buy);
+  ch.update();rg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.r===k));};
+ rg.onclick=e=>{const k=e.target.dataset&&e.target.dataset.r;if(k){setRange(k);store.set('gh_range_'+a.key,k)}};
+ const saved=store.get('gh_range_'+a.key);
+ setRange(saved&&rg.querySelector(`[data-r="${saved}"]`)?saved:'2y');
  const mv=MN.map((_,k)=>a.months[k+1]??null);
  new Chart(document.getElementById('m'+i),{type:'bar',data:{labels:MN,datasets:[{label:t('s_month'),data:mv,
   backgroundColor:mv.map(v=>v>=0?css('--up'):css('--down'))}]},
   options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:tick,grid:{display:false}},y:{ticks:tick,grid}}}});
+ const od=document.getElementById('ol'+i);
+ if(od){let built=false;
+  od.addEventListener('toggle',()=>{if(od.open&&!built){built=true;fanChart(a)}store.set('gh_ol_'+a.key,od.open?'1':'0')});
+  if(store.get('gh_ol_'+a.key)==='1')od.open=true;}
 });
+function plCell(a){return`<small>${t('profit_loss')}</small><b class="${cls(a.pl)}">${a.pl>=0?'+':''}${f(a.pl,0)} ${cur(a.currency)}</b><br><span class="${cls(a.pl_pct)}">${f(a.pl_pct,1)}%</span>`}
+// ---- live prices (only when served by the Gold Hunt app, which has /api/live)
+const dot=document.getElementById('dot'),ltxt=document.getElementById('livetxt');
+let lastOk=0,failed=false;
+function applyQuote(a,q){
+ if(!q||!q.price)return;
+ const moved=Math.abs(q.price-a.price)>1e-9;
+ a.live=q;a.price=q.price;a.change_pct=a.prev?(a.price/a.prev-1)*100:a.change_pct;a.value=a.price*a.qty;
+ if(a.buy){a.pl=(a.price-a.buy)*a.qty;a.pl_pct=(a.price/a.buy-1)*100}
+ const i=a._i,s=a.series;
+ document.getElementById('hd'+i).innerHTML=head(a);
+ document.getElementById('pl'+i).innerHTML=plCell(a);
+ if(moved)document.getElementById('pr'+i).classList.add('flash');
+ s.close[s.close.length-1]=Math.round(a.price*100)/100;
+ const ch=CH[i];if(ch){ch.data.datasets[0].data=s.close.slice(a._from||0);ch.update('none')}
+}
+async function poll(){
+ try{
+  const r=await fetch('/api/live?tickers='+encodeURIComponent(D.map(a=>a.key).join(',')),{cache:'no-store'});
+  const j=await r.json();
+  D.forEach(a=>applyQuote(a,j.quotes[a.key]));renderTotals();lastOk=Date.now();failed=false;
+ }catch{failed=true}
+}
+function tick(){
+ if(!lastOk&&!failed){ltxt.textContent=t('loading_prices');return}
+ dot.className='dot '+(failed?'err':'on');
+ ltxt.textContent=failed?t('live_err'):`${t('live_on')} · ${t('live_ago',{s:Math.round((Date.now()-lastOk)/1000)})}`;
+}
+if(location.port==='8765'){poll();setInterval(poll,5000);setInterval(tick,1000);tick()}
+else ltxt.textContent=t('live_off');
 </script></body></html>

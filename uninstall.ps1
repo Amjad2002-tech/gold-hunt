@@ -1,11 +1,12 @@
-# Gold Hunt uninstaller - started from Settings > Apps > Installed apps > Gold Hunt > Uninstall.
-# Removes the app, its shortcuts and its Apps entry. Your settings are backed up to Documents first.
+﻿# Gold Hunt uninstaller - started from Settings > Apps > Installed apps > Gold Hunt > Uninstall.
+# Removes the app, its shortcuts and its Apps entry. Your own data in %APPDATA%\Gold Hunt is KEPT,
+# so reinstalling brings everything back. Your settings are also backed up to Documents.
 # The GitHub alerts are separate and keep running (turn them off on GitHub if you want).
 Add-Type -AssemblyName PresentationFramework
 $dest    = Join-Path $env:LOCALAPPDATA 'Programs\Gold Hunt'
 $regKey  = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\GoldHunt'
 $answer = [System.Windows.MessageBox]::Show(
-    "Remove Gold Hunt from this PC?`n`nYour settings will be saved to Documents\Gold Hunt settings backup.ini.`nWhatsApp alerts from GitHub keep running until you turn them off there.",
+    "Remove Gold Hunt from this PC?`n`nYour data stays in %APPDATA%\Gold Hunt (delete that folder to erase it) and is backed up to Documents\Gold Hunt settings backup.ini.`nWhatsApp alerts from GitHub keep running until you turn them off there.",
     'Uninstall Gold Hunt', 'YesNo', 'Question')
 if ($answer -ne 'Yes') { exit }
 
@@ -15,7 +16,8 @@ Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Milliseconds 500
 
-$settings = Join-Path $dest 'settings.ini'
+$settings = Join-Path $env:APPDATA 'Gold Hunt\settings.ini'
+if (-not (Test-Path $settings)) { $settings = Join-Path $dest 'settings.ini' }  # older installs
 if (Test-Path $settings) {
     Copy-Item $settings (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gold Hunt settings backup.ini') -Force
 }

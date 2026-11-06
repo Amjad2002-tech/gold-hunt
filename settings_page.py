@@ -14,13 +14,16 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+import shutil
+
 import gold_hunt
+import app_paths  # points gold_hunt at this user's own data folder
 
 HERE = gold_hunt.HERE
 SETTINGS = gold_hunt.SETTINGS
 PAGE = HERE / "settings_page.html"
-GH = r"C:\Program Files\GitHub CLI\gh.exe"
-REPO = "Amjad2002-tech/gold-hunt"
+# GitHub upload is optional: only when gh is installed AND settings.ini has [github] repo = owner/name
+GH = shutil.which("gh") or r"C:\Program Files\GitHub CLI\gh.exe"
 PORT = 8765
 IDLE_SECONDS = 90  # the open page pings every 20s; stop when nobody has for this long
 last_ping = time.time()
@@ -40,6 +43,14 @@ def read_settings():
               "language": cfg.get("alerts", "language", fallback="en")}
     whatsapp = list(cfg.items("whatsapp")) if cfg.has_section("whatsapp") else []
     return {"gold": gold, "stocks": stocks, "alerts": alerts}, whatsapp
+
+
+def github_repo():
+    """The repo to upload settings to, or '' (default for new users: saved on this PC only)."""
+    cfg = configparser.ConfigParser(inline_comment_prefixes=("#",))
+    cfg.read(SETTINGS, encoding="utf-8")
+    repo = cfg.get("github", "repo", fallback="").strip()
+    return repo if repo.count("/") == 1 and " " not in repo else ""
 
 
 def number(value, label, required=False):
@@ -88,8 +99,8 @@ def clean(data):
     return gold, stocks, alerts
 
 
-def render(gold, stocks, alerts, whatsapp):
-    """Return (public text for GitHub, full text for the PC). WhatsApp stays on the PC only."""
+def render(gold, stocks, alerts, whatsapp, repo=""):
+    """Return (text for GitHub, full text for the PC). WhatsApp and [github] stay on the PC only."""
     lines = ["# GOLD HUNT settings - edit with the settings page (Gold Hunt Settings.bat)", "", "[gold]"]
     lines += [f"{k} = {v}" for k, v in gold.items()] + [""]
     for s in stocks:
@@ -97,12 +108,18 @@ def render(gold, stocks, alerts, whatsapp):
     lines += ["[alerts]"] + [f"{k} = {v}" for k, v in alerts.items()] + [""]
     public = "\n".join(lines)
     private = "\n[whatsapp]\n# 9665XXXXXXXX = 123456\n" + "".join(f"{p} = {k}\n" for p, k in whatsapp)
+    private += ("\n[github]\n# Optional: owner/name of your own GitHub repo for cloud alerts. Blank = this PC only.\n"
+                f"repo = {repo}\n")
     return public, public + private
 
 
-def upload(public):
+def upload(public, repo):
+    if not repo:
+        return None, "No GitHub repo set - saved on this PC only"
+    if not Path(GH).exists():
+        return None, "GitHub CLI (gh) not installed - saved on this PC only"
     try:
-        r = subprocess.run([GH, "secret", "set", "GOLD_HUNT_SETTINGS", "-R", REPO],
+        r = subprocess.run([GH, "secret", "set", "GOLD_HUNT_SETTINGS", "-R", repo],
                            input=public.encode("utf-8"), capture_output=True, timeout=60,
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         return r.returncode == 0, r.stderr.decode(errors="replace").strip()
@@ -113,10 +130,12 @@ def upload(public):
 def save(data):
     gold, stocks, alerts = clean(data)
     _, whatsapp = read_settings()
-    public, full = render(gold, stocks, alerts, whatsapp)
+    repo = github_repo()
+    public, full = render(gold, stocks, alerts, whatsapp, repo)
     SETTINGS.write_text(full, encoding="utf-8")
-    ok, err = upload(public)
-    return {"ok": True, "github": ok, "error": err}
+    ok, err = upload(public, repo)
+    # github: True = uploaded, False = upload failed, None = not configured (saved on this PC only)
+    return {"ok": True, "github": ok, "local_only": ok is None, "error": err}
 
 
 # ---------------------------------------------------------------- live quotes for suggestions
@@ -146,6 +165,109 @@ def search(query):
                     "exchange": q.get("exchDisp") or q.get("exchange", ""),
                     "currency": "SAR" if sym.endswith(".SR") else "USD"})
     return out
+
+
+# ---------------------------------------------------------------- live prices for the dashboard
+LIVE_TTL = 10          # seconds a stock quote is reused (many polls -> one Yahoo call)
+DEWAN_EVERY = 5        # seconds between reads of the open Dewan page
+_live_cache, _live_lock = {}, threading.Lock()
+_dewan = {"price": None, "t": 0.0, "started": False, "error": None}
+_gold_ref = {"ratio": None}  # Dewan price / world price, to scale the futures price if Dewan stops
+
+
+def _dewan_loop():
+    """Keep ONE headless browser page on dewanaldahab.com open and read its live 24K price
+    every few seconds (launching a browser per poll would be far too slow)."""
+    while True:
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page()
+                opened = time.time()
+                page.goto(gold_hunt.DEWAN_URL, wait_until="domcontentloaded", timeout=60000)
+                while True:
+                    if time.time() - last_ping > IDLE_SECONDS:  # app closed: stop using the network
+                        browser.close()
+                        _dewan["started"] = False
+                        return
+                    if time.time() - opened > 600:  # reload every 10 min in case the feed stalls
+                        page.reload(wait_until="domcontentloaded", timeout=60000)
+                        opened = time.time()
+                    v = page.get_attribute("#caret24_Price", "data-price", timeout=15000)
+                    try:
+                        v = float(v)
+                    except (TypeError, ValueError):
+                        v = None
+                    if v and 100 < v < 2000:
+                        _dewan.update(price=v, t=time.time(), error=None)
+                    time.sleep(DEWAN_EVERY)
+        except Exception as e:
+            _dewan["error"] = type(e).__name__
+            time.sleep(30)  # browser missing / site down: try again later, futures fallback meanwhile
+
+
+def _minute_quote(ticker):
+    """Last 1-minute bar from Yahoo: (price, time ISO) or (None, None)."""
+    h = gold_hunt.yf.Ticker(ticker).history(period="5d", interval="1m")
+    h = h.dropna(subset=["Close"])
+    if h.empty:
+        return None, None
+    return float(h["Close"].iloc[-1]), h.index[-1].isoformat()
+
+
+def live_quote(key):
+    now = time.time()
+    with _live_lock:
+        hit = _live_cache.get(key)
+    if hit and now - hit[0] < LIVE_TTL:
+        return hit[1]
+    if key == "GOLD":
+        if not _dewan["started"]:
+            _dewan["started"] = True
+            threading.Thread(target=_dewan_loop, daemon=True).start()
+        world, wtime = _minute_quote("GC=F")
+        world = world * gold_hunt.USD_SAR / gold_hunt.GRAMS_PER_OUNCE if world else None
+        fresh = _dewan["price"] and now - _dewan["t"] < 60
+        if fresh and world:
+            _gold_ref["ratio"] = _dewan["price"] / world
+        elif world and not _gold_ref["ratio"] and gold_hunt._dewan_cache.get("price"):
+            _gold_ref["ratio"] = gold_hunt._dewan_cache["price"] / world  # from the dashboard build
+        if fresh:
+            q = {"price": _dewan["price"], "time": dt_iso(_dewan["t"]), "source": "dewanaldahab.com", "delay_min": 0}
+        elif world:
+            q = {"price": world * (_gold_ref["ratio"] or 1), "time": wtime,
+                 "source": "Yahoo GC=F" + (" ×Dewan" if _gold_ref["ratio"] else ""), "delay_min": 10}
+        else:
+            q = None
+    else:
+        price, ptime = _minute_quote(key)
+        # Yahoo's Saudi (Tadawul) quotes are delayed ~15 min; US quotes are near real time
+        q = {"price": price, "time": ptime, "source": "Yahoo Finance",
+             "delay_min": 15 if key.endswith(".SR") else 0} if price else None
+    if q:
+        q["pulled"] = dt_iso(now)
+        with _live_lock:
+            _live_cache[key] = (now, q)
+    return q
+
+
+def dt_iso(ts):
+    import datetime as dt
+    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).isoformat(timespec="seconds")
+
+
+def live(keys):
+    from concurrent.futures import ThreadPoolExecutor
+    keys = [k for k in dict.fromkeys(keys) if k and len(k) <= 20 and all(c.isalnum() or c in ".-=^" for c in k)][:20]
+
+    def one(k):
+        try:
+            return k, live_quote(k)
+        except Exception:
+            return k, None
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        return {"quotes": dict(ex.map(one, keys)), "server_time": dt_iso(time.time())}
 
 
 # ---------------------------------------------------------------- web server
@@ -181,6 +303,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send(200, {"ok": True})
         elif url.path == "/dashboard":
             self.send(200, build_dashboard(), "text/html")
+        elif url.path == "/api/live":
+            last_ping = time.time()  # an open dashboard counts as the app being used
+            keys = parse_qs(url.query).get("tickers", [""])[0].upper().split(",")
+            self.send(200, live([k.strip() for k in keys]))
         elif url.path == "/api/settings":
             self.send(200, read_settings()[0])
         elif url.path == "/api/search":

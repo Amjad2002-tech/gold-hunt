@@ -15,9 +15,12 @@ import sys
 import urllib.parse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import requests
 import yfinance as yf
+
+import outlook as outlook_mod
 
 HERE = Path(__file__).resolve().parent
 SETTINGS = HERE / "settings.ini"
@@ -77,13 +80,16 @@ def load_settings():
 
 # ---------------------------------------------------------------- data
 def fetch(asset):
-    df = yf.Ticker(asset["ticker"]).history(period="2y", interval="1d", auto_adjust=False)
+    # 10 years for the behaviour analysis; the usual fields/charts still use the last 2 years
+    df = yf.Ticker(asset["ticker"]).history(period="10y", interval="1d", auto_adjust=False)
     if df.empty:
         raise RuntimeError(f"No data for {asset['ticker']}")
-    s = df["Close"].dropna()
-    s.index = s.index.tz_localize(None).normalize()
+    full = df["Close"].dropna()
+    full.index = full.index.tz_localize(None).normalize()
+    full = full[~full.index.duplicated(keep="last")]
     if asset["key"] == "GOLD":
-        s = s * USD_SAR / GRAMS_PER_OUNCE  # USD/oz -> SAR/gram
+        full = full * USD_SAR / GRAMS_PER_OUNCE  # USD/oz -> SAR/gram
+    s = full[full.index > full.index[-1] - pd.DateOffset(years=2)].copy()
     # During trading hours the last daily bar already holds the current price.
     # Time of the last trade = last 1-minute bar (falls back to the daily bar's date).
     price_time = df.index[-1]
@@ -100,10 +106,12 @@ def fetch(asset):
         if dewan:
             # Use Dewan Al Dahab's local 24K price; scale history by the same ratio so the
             # 2-year analysis stays consistent with it (Dewan = world price + their fees)
+            full = full * (dewan / s.iloc[-1])
             s = s * (dewan / s.iloc[-1])
             s.attrs.update(price_time=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
                            source="dewanaldahab.com")
     s.attrs["pulled_at"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    s.attrs["long"] = full
     return s
 
 
@@ -144,7 +152,262 @@ def rsi(s, n=14):
     return 100 - 100 / (1 + up / dn)
 
 
+def _num(v, nd=2):
+    """Round to a JSON-safe float (None for NaN/inf)."""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return round(v, nd) if np.isfinite(v) else None
+
+
+def _clip(v, lo=-1.0, hi=1.0):
+    return 0.0 if v is None or not np.isfinite(v) else float(min(hi, max(lo, v)))
+
+
+def _bucket(v, edges):
+    """Index of the bucket `v` falls in (edges are the inner cut points); NaN -> -1."""
+    v = np.asarray(v, dtype=float)
+    return np.where(np.isnan(v), -1, np.searchsorted(edges, np.nan_to_num(v), side="right"))
+
+
+def _independent(idx, gap):
+    """How many sample days are at least `gap` days apart (non-overlapping forward windows)."""
+    n, last = 0, -10 ** 9
+    for i in idx:
+        if i - last >= gap:
+            n, last = n + 1, i
+    return n
+
+
+def _swings(c, look=250, w=10):
+    """Confirmed swing highs/lows (a close that is the max/min of the w days on either side) in the
+    last `look` days. The newest w days can't be confirmed yet, so nothing uses future prices."""
+    v = c.values[-(look + w):] if len(c) > look + w else c.values
+    highs, lows = [], []
+    for i in range(w, len(v) - w):
+        seg = v[i - w:i + w + 1]
+        if v[i] == seg.max():
+            highs.append(float(v[i]))
+        elif v[i] == seg.min():
+            lows.append(float(v[i]))
+    return highs, lows
+
+
+def _levels(points, price, above, tol=0.015, k=3):
+    """Cluster swing points within `tol` and return the k nearest levels above/below the price."""
+    pts = sorted(p for p in points if (p > price if above else p < price))
+    clusters = []
+    for p in pts:
+        if clusters and p / clusters[-1][-1] - 1 <= tol:
+            clusters[-1].append(p)
+        else:
+            clusters.append([p])
+    lv = [{"price": _num(np.mean(cl)), "touches": len(cl),
+           "dist_pct": _num((np.mean(cl) / price - 1) * 100)} for cl in clusters]
+    lv.sort(key=lambda d: abs(d["dist_pct"]))
+    return lv[:k]
+
+
+BH_RSI_EDGES = [30, 45, 55, 70]
+BH_RANGE_EDGES = [20, 40, 60, 80]
+BH_DIST_EDGES = [-10, -3, 3, 10, 20]
+BH_HORIZONS = (20, 60)
+BH_WEIGHTS = {"history": 35, "trend": 20, "stretch": 20, "momentum": 15, "season": 10}
+
+
+def behaviour(asset, c):
+    """History-based behaviour of one asset: what happened after past days that looked like today,
+    plus volatility, drawdowns, seasonality, support/resistance and momentum, combined into a score
+    (-100..+100) and a stance code. Historical statistics only - not personalised advice.
+    Every indicator at day t uses data up to t only, and forward returns are only taken from days
+    whose 20/60-day future is already known (no look-ahead)."""
+    c = c.dropna().astype(float)
+    n = len(c)
+    out = {"years": _num(n / 252, 1), "days": n, "from": c.index[0].strftime("%Y-%m-%d") if n else None,
+           "disclaimer": "bh_disclaimer"}
+    if n < 300:
+        out.update(score=0, stance="hold", confidence="low", reasons=[["bh_short_history", n]], now=None,
+                   similar=None, volatility=None, drawdown=None, momentum=None, seasonality=None,
+                   levels=None, position=None, components=None, weights=BH_WEIGHTS)
+        return out
+    v = c.values
+    price = float(v[-1])
+    logret = np.diff(np.log(v))
+
+    # ---- features (each uses data up to that day only)
+    r = rsi(c).values
+    sma50 = c.rolling(50).mean().values
+    sma200 = c.rolling(200).mean().values
+    dist200 = (v / sma200 - 1) * 100
+    win = 252
+    rangepos = np.full(n, np.nan)  # % of the previous year's closes below that day's close
+    if n > win:
+        sw = np.lib.stride_tricks.sliding_window_view(v, win)  # row j = v[j:j+win], ends on day j+win-1
+        rangepos[win - 1:] = (sw < sw[:, -1:]).mean(axis=1) * 100
+    trend = np.where((v > sma50) & (sma50 > sma200), 1, np.where((v < sma50) & (sma50 < sma200), -1, 0))
+    trend = np.where(np.isnan(sma200), -9, trend)
+
+    b_rsi = _bucket(r, BH_RSI_EDGES)
+    b_rng = _bucket(rangepos, BH_RANGE_EDGES)
+    b_dst = _bucket(dist200, BH_DIST_EDGES)
+    valid = (b_rsi >= 0) & (b_rng >= 0) & (b_dst >= 0) & (trend != -9)
+    now = {"rsi": _num(r[-1], 1), "range_pos": _num(rangepos[-1], 1), "dist_sma200_pct": _num(dist200[-1], 1),
+           "trend": {1: "up", -1: "down", 0: "side"}.get(int(trend[-1]), "side")}
+
+    # ---- forward returns after similar days (widen the match until there are enough samples)
+    vol_ann = float(np.std(logret[-252:], ddof=1) * np.sqrt(252))
+    match_levels = [("all", [b_rsi, b_rng, b_dst, trend]), ("no_trend", [b_rsi, b_rng, b_dst]),
+                    ("rsi_range", [b_rsi, b_rng]), ("range", [b_rng])]
+    similar = {"match": None, "horizons": {}}
+    sim_idx = np.array([], dtype=int)
+    if valid[-1]:
+        for name, feats in match_levels:
+            m = valid.copy()
+            for f in feats:
+                m &= f == f[-1]
+            idx = np.flatnonzero(m[:n - BH_HORIZONS[0]])  # only days with a known future
+            if len(idx) >= 40 or name == "range":
+                similar["match"], sim_idx = name, idx
+                break
+    base_idx = np.flatnonzero(valid)
+    for h in BH_HORIZONS:
+        fwd = np.full(n, np.nan)
+        fwd[:n - h] = (v[h:] / v[:n - h] - 1) * 100
+        si = sim_idx[sim_idx < n - h]
+        bi = base_idx[base_idx < n - h]
+        sv, bv = fwd[si], fwd[bi]
+        similar["horizons"][str(h)] = {
+            "samples": int(len(sv)), "independent": _independent(si, h),
+            "median_pct": _num(np.median(sv)) if len(sv) else None,
+            "mean_pct": _num(np.mean(sv)) if len(sv) else None,
+            "hit_rate": _num((sv > 0).mean() * 100, 1) if len(sv) else None,
+            "p10_pct": _num(np.percentile(sv, 10)) if len(sv) else None,
+            "p90_pct": _num(np.percentile(sv, 90)) if len(sv) else None,
+            "base_median_pct": _num(np.median(bv)) if len(bv) else None,
+            "base_hit_rate": _num((bv > 0).mean() * 100, 1) if len(bv) else None,
+        }
+
+    # ---- volatility, drawdown, momentum
+    vol60 = pd.Series(logret).rolling(60).std().values * np.sqrt(252)
+    vol60_now = float(vol60[-1])
+    vol_pctile = float((vol60[~np.isnan(vol60)] < vol60_now).mean() * 100)
+    volatility = {"annual_pct": _num(vol_ann * 100, 1),
+                  "typical_day_pct": _num(np.median(np.abs(logret[-252:])) * 100),
+                  "recent60_annual_pct": _num(vol60_now * 100, 1), "recent_vs_history_pctile": _num(vol_pctile, 0)}
+    peak = np.maximum.accumulate(v)
+    dd = (v / peak - 1) * 100
+    drawdown = {"current_pct": _num(dd[-1]), "max_pct": _num(dd.min()),
+                "max_date": c.index[int(dd.argmin())].strftime("%Y-%m-%d"),
+                "median_pct": _num(np.median(dd)), "peak": _num(peak[-1]),
+                "deeper_than_pct_of_days": _num((dd > dd[-1]).mean() * 100, 0)}
+    mom = {f"ret{k}_pct": (_num((price / v[-k - 1] - 1) * 100) if n > k else None) for k in (20, 60, 250)}
+
+    # ---- seasonality (month-end to month-end; the current, unfinished month is left out)
+    me = c.resample("ME").last()
+    if me.index[-1].to_period("M") == c.index[-1].to_period("M"):
+        me = me.iloc[:-1]
+    mr = me.pct_change().dropna() * 100
+    months = {int(mo): {"avg_pct": _num(x.mean()), "hit_rate": _num((x > 0).mean() * 100, 0), "years": int(len(x))}
+              for mo, x in mr.groupby(mr.index.month)}
+    cur_m = int(c.index[-1].month)
+    seasonality = {"month": cur_m, "this_month": months.get(cur_m), "next_month": months.get(cur_m % 12 + 1),
+                   "all_months_avg_pct": _num(mr.mean()), "by_month": months}
+
+    # ---- support / resistance from confirmed swing points of the last year
+    highs, lows = _swings(c)
+    lv = {"resistance": _levels(highs + lows, price, True), "support": _levels(highs + lows, price, False)}
+
+    # ---- combine into a score (each component -1..+1)
+    sig60 = vol_ann * np.sqrt(60 / 252) * 100  # one typical 60-day move, in %
+    h20, h60 = similar["horizons"]["20"], similar["horizons"]["60"]
+    comp = {}
+    if h60["median_pct"] is not None and h60["base_median_pct"] is not None:
+        edge = (h60["median_pct"] - h60["base_median_pct"]) / (0.5 * sig60)
+        hit = (h60["hit_rate"] - h60["base_hit_rate"]) / 20
+        edge20 = 0.0
+        if h20["median_pct"] is not None and h20["base_median_pct"] is not None:
+            edge20 = (h20["median_pct"] - h20["base_median_pct"]) / (0.5 * sig60 * np.sqrt(20 / 60))
+        # fewer independent samples -> trust the history component less
+        trust = min(1.0, h60["independent"] / 8)
+        comp["history"] = _clip(trust * (0.5 * _clip(edge) + 0.3 * _clip(hit) + 0.2 * _clip(edge20)))
+    comp["trend"] = float({1: 1, -1: -1}.get(int(trend[-1]), 0))
+    # stretched above the long average / top of the yearly range / overbought -> negative (and the reverse)
+    stretch = -(dist200[-1] / (vol_ann * 100 * 0.6))
+    rp = 0.0 if np.isnan(rangepos[-1]) else -(rangepos[-1] - 50) / 50
+    rs = -(r[-1] - 50) / 25
+    comp["stretch"] = _clip(0.4 * _clip(stretch) + 0.3 * _clip(rp) + 0.3 * _clip(rs))
+    if mom["ret60_pct"] is not None:
+        comp["momentum"] = _clip(mom["ret60_pct"] / sig60)
+    tm = seasonality["this_month"]
+    if tm and tm["years"] >= 4 and tm["avg_pct"] is not None:
+        comp["season"] = _clip((tm["avg_pct"] - (seasonality["all_months_avg_pct"] or 0))
+                               / (vol_ann * 100 * np.sqrt(21 / 252)))
+    wsum = sum(BH_WEIGHTS[k] for k in comp)
+    score = int(round(sum(comp[k] * BH_WEIGHTS[k] for k in comp) / wsum * 100)) if wsum else 0
+    stance = ("buy_zone" if score >= 50 else "accumulate" if score >= 20 else "hold" if score > -20
+              else "take_profit" if score > -50 else "sell_zone")
+    sgn = np.sign(score)
+    strong = [x for x in comp.values() if abs(x) >= 0.15]
+    agree = (sum(np.sign(x) == sgn for x in strong) / len(strong)) if (strong and sgn) else 0.5
+    indep = h60["independent"]
+    confidence = ("high" if indep >= 10 and h60["samples"] >= 80 and agree >= 0.7 and abs(score) >= 25
+                  else "medium" if indep >= 5 and h60["samples"] >= 40 and agree >= 0.5 else "low")
+
+    # ---- reason codes [code, value], translated by TEXT / i18n.js
+    reasons = []
+    if h60["hit_rate"] is not None:
+        reasons.append(["bh_hist60", round(h60["hit_rate"])])
+        reasons.append(["bh_med60", round(h60["median_pct"], 1)])
+    reasons.append(["bh_trend_" + now["trend"], 0])
+    if dist200[-1] >= 10:
+        reasons.append(["bh_above_avg", round(float(dist200[-1]))])
+    elif dist200[-1] <= -5:
+        reasons.append(["bh_below_avg", round(float(-dist200[-1]))])
+    if r[-1] >= 70:
+        reasons.append(["bh_rsi_high", round(float(r[-1]))])
+    elif r[-1] <= 30:
+        reasons.append(["bh_rsi_low", round(float(r[-1]))])
+    if not np.isnan(rangepos[-1]):
+        if rangepos[-1] >= 85:
+            reasons.append(["bh_range_high", round(float(rangepos[-1]))])
+        elif rangepos[-1] <= 15:
+            reasons.append(["bh_range_low", round(float(100 - rangepos[-1]))])
+    if mom["ret60_pct"] is not None and abs(mom["ret60_pct"]) >= sig60:
+        reasons.append(["bh_mom_strong" if mom["ret60_pct"] > 0 else "bh_mom_weak", round(mom["ret60_pct"], 1)])
+    if "season" in comp and abs(comp["season"]) >= 0.3:
+        reasons.append(["bh_season_good" if comp["season"] > 0 else "bh_season_bad", round(tm["avg_pct"], 1)])
+    if lv["resistance"] and lv["resistance"][0]["dist_pct"] <= 3:
+        reasons.append(["bh_near_res", round(lv["resistance"][0]["dist_pct"], 1)])
+    if lv["support"] and lv["support"][0]["dist_pct"] >= -3:
+        reasons.append(["bh_near_sup", round(-lv["support"][0]["dist_pct"], 1)])
+    if dd[-1] <= -15:
+        reasons.append(["bh_drawdown", round(float(-dd[-1]))])
+    if vol_pctile >= 85:
+        reasons.append(["bh_vol_high", round(vol60_now * 100)])
+
+    # ---- position context (only when the user entered a buy price) - still statistics, not advice
+    position = None
+    buy = asset.get("buy")
+    if buy:
+        pl_pct = (price / buy - 1) * 100
+        position = {"pl_pct": _num(pl_pct), "pl_in_typical_moves": _num(pl_pct / sig60),
+                    "typical_60d_move_pct": _num(sig60),
+                    "breakeven_pct": _num((buy / price - 1) * 100),
+                    "buy_price_pctile_1y": _num((v[-252:] < buy).mean() * 100, 0)}
+        if pl_pct >= 0:
+            reasons.append(["bh_pos_gain", round(pl_pct / sig60, 1)])
+        else:
+            reasons.append(["bh_pos_breakeven", round((buy / price - 1) * 100, 1)])
+
+    out.update(score=score, stance=stance, confidence=confidence, reasons=reasons, now=now, similar=similar,
+               volatility=volatility, drawdown=drawdown, momentum=mom, seasonality=seasonality, levels=lv,
+               position=position, components={k: _num(x) for k, x in comp.items()}, weights=BH_WEIGHTS)
+    return out
+
+
 def analyse(asset, s):
+    long = s.attrs.pop("long", None)  # 10-year series for behaviour(); kept out of the result
     price = float(s.iloc[-1])
     prev = float(s.iloc[-2])
     sma50 = s.rolling(50).mean()
@@ -183,6 +446,10 @@ def analyse(asset, s):
     by_month = monthly.groupby(monthly.index.month).mean() * 100
     months = {int(m): round(float(v), 2) for m, v in by_month.items()}
 
+    hist = s if long is None else long
+    bh = behaviour(asset, hist)
+    ol = outlook_mod.outlook(asset, hist, bh, STATE.parent / "news_cache.json")
+
     pl = (price - asset["buy"]) * asset["qty"] if asset["buy"] else None
     pl_pct = (price / asset["buy"] - 1) * 100 if asset["buy"] else None
 
@@ -197,14 +464,22 @@ def analyse(asset, s):
         "below_auto": asset["below"] is None,
         "score": score, "reasons": reasons, "verdict": verdict, "tone": tone, "trend": trend,
         "reason_codes": codes, "verdict_code": verdict_code, "trend_code": trend_code,
-        "months": months, "pl": pl, "pl_pct": pl_pct, "value": price * asset["qty"],
-        "series": {
-            "dates": [d.strftime("%Y-%m-%d") for d in s.index],
-            "close": [round(float(v), 2) for v in s],
-            "sma50": [None if pd.isna(v) else round(float(v), 2) for v in sma50],
-            "sma200": [None if pd.isna(v) else round(float(v), 2) for v in sma200],
-        },
+        "months": months, "behaviour": bh, "outlook": ol, "pl": pl, "pl_pct": pl_pct, "value": price * asset["qty"],
+        "series": _chart_series(s if long is None else long, s),
     }
+
+
+def _chart_series(full, s, years=5):
+    """Up to 5 years of closes + averages for the dashboard range buttons (1M..5Y).
+    Averages come from the full history so the first chart days already have them."""
+    full = full.copy()
+    full.iloc[-1] = s.iloc[-1]  # same latest price as the analysis
+    m50, m200 = full.rolling(50).mean(), full.rolling(200).mean()
+    keep = full.index > full.index[-1] - pd.DateOffset(years=years)
+    r = lambda v: None if pd.isna(v) else round(float(v), 2)
+    return {"dates": [d.strftime("%Y-%m-%d") for d in full.index[keep]],
+            "close": [r(v) for v in full[keep]], "sma50": [r(v) for v in m50[keep]],
+            "sma200": [r(v) for v in m200[keep]]}
 
 
 # ---------------------------------------------------------------- alerts
@@ -253,11 +528,49 @@ TEXT = {
         "m_pl": "Your {g:,.0f} g bought at {b:,.2f}: {pl:+,.0f} SAR ({pp:+.1f}%)",
         "m_range": "2-year range {lo:,.0f} - {hi:,.0f} - today is higher than {r}% of days",
         "m_signal": "Signal: {v}",
-        "h_line": "{n}: today {p:,.2f} / yesterday {y:,.2f} ({d:+,.2f}, {cp:+.1f}%)",
-        "h_pl": " - you hold {q:,.0f} {qn} at {b:,.2f}, profit {pl:+,.0f} {c} ({pp:+.1f}%)",
+        "h_line": "{i} {n}: {p:,.2f} {c} (yesterday {y:,.2f}, {cp:+.1f}%)",
+        "h_pl": " - {q:,.0f} {qn} bought at {b:,.2f} - profit {pl:+,.0f} {c} ({pp:+.1f}%)",
         "h_grams": "g", "h_shares": "shares", "h_total": "Total: ",
         "mv_title": "{a} Gold 24K moved {d:+.2f} SAR",
         "mv_line": "From {old:,.2f} to {new:,.2f} SAR/gram (dewanaldahab.com)",
+        "stance_buy_zone": "Historically a buy zone", "stance_accumulate": "Historically leaned positive",
+        "stance_hold": "Historically neutral - hold / wait",
+        "stance_take_profit": "Historically leaned negative - profit-taking zone",
+        "stance_sell_zone": "Historically a sell zone",
+        "conf_low": "low confidence", "conf_medium": "medium confidence", "conf_high": "high confidence",
+        "bh_hist60": "historically, in similar conditions the price was higher 60 trading days later {v}% of the time",
+        "bh_med60": "median move 60 trading days after similar days: {v:+}%",
+        "bh_trend_up": "uptrend (above 50- and 200-day averages)",
+        "bh_trend_down": "downtrend (below 50- and 200-day averages)", "bh_trend_side": "no clear trend",
+        "bh_above_avg": "{v}% above its 200-day average (stretched)", "bh_below_avg": "{v}% below its 200-day average",
+        "bh_rsi_high": "RSI {v} = overbought", "bh_rsi_low": "RSI {v} = oversold",
+        "bh_range_high": "higher than {v}% of the past year", "bh_range_low": "lower than {v}% of the past year",
+        "bh_mom_strong": "strong 60-day rise ({v:+}%)", "bh_mom_weak": "weak last 60 days ({v:+}%)",
+        "bh_season_good": "this month has historically averaged {v:+}%",
+        "bh_season_bad": "this month has historically averaged {v:+}%",
+        "bh_near_res": "resistance (past swing high) {v}% above", "bh_near_sup": "support (past swing low) {v}% below",
+        "bh_drawdown": "{v}% below its peak", "bh_vol_high": "unusually volatile now ({v}% a year)",
+        "bh_pos_gain": "your gain equals {v}x a typical 60-day move",
+        "bh_pos_breakeven": "price needs {v:+}% to reach your buy price",
+        "bh_short_history": "only {v} days of history - not enough for analysis",
+        "ol_disclaimer": "Probabilities from this asset's own price history and a simple headline word count - not financial advice and not a personal recommendation. The past does not guarantee the future.",
+        "ol_short_history": "not enough price history for a forecast",
+        "ol_lean_favourable": "Historical odds favour a rise", "ol_lean_neutral": "Historical odds are balanced",
+        "ol_lean_unfavourable": "Historical odds lean towards a fall",
+        "ol_odds_up": "Odds of being higher: 1 week {w}%, 1 month {m}%, 3 months {q}%",
+        "ol_range_1m": "Likely range in 1 month (80% of simulations): {lo:,.2f} - {hi:,.2f}",
+        "ol_r_behaviour": "behaviour score {v:+}",
+        "ol_r_fc_up21": "{v}% of simulations end higher in 1 month",
+        "ol_r_fc_up63": "{v}% of simulations end higher in 3 months",
+        "ol_r_fc_dip5": "{v}% chance of touching -5% within a month",
+        "ol_r_fc_pop5": "{v}% chance of touching +5% within a month",
+        "ol_r_fc_buy63": "{v}% chance of being above your buy price in 3 months",
+        "ol_r_news_positive": "{v} positive headlines recently", "ol_r_news_negative": "{v} negative headlines recently",
+        "news_positive": "positive", "news_negative": "negative", "news_neutral": "neutral",
+        "news_title": "Latest news", "news_none": "no recent news available",
+        "fc_title": "Range of possible prices", "fc_prob_up": "chance higher", "fc_touch_up5": "touch +5%",
+        "fc_touch_dn5": "touch -5%", "fc_above_buy": "above buy price",
+        "bh_disclaimer": "Historical statistics only, not financial advice. The past does not guarantee the future.",
     },
     "ar": {
         "title": "تنبيه Gold Hunt", "riyadh": "بتوقيت الرياض", "sep": "، ", "gold_name": "ذهب عيار 24",
@@ -280,11 +593,49 @@ TEXT = {
         "m_pl": "لديك {g:,.0f} جرام بسعر شراء {b:,.2f}: {pl:+,.0f} ريال ({pp:+.1f}%)",
         "m_range": "نطاق السنتين {lo:,.0f} - {hi:,.0f} - السعر اليوم أعلى من {r}% من الأيام",
         "m_signal": "الإشارة: {v}",
-        "h_line": "{n}: اليوم {p:,.2f} / أمس {y:,.2f} ({d:+,.2f}، {cp:+.1f}%)",
-        "h_pl": " - لديك {q:,.0f} {qn} بسعر {b:,.2f}، الربح {pl:+,.0f} {c} ({pp:+.1f}%)",
+        "h_line": "{i} {n}: {p:,.2f} {c} (أمس {y:,.2f}، {cp:+.1f}%)",
+        "h_pl": " - {q:,.0f} {qn} بسعر شراء {b:,.2f} - الربح {pl:+,.0f} {c} ({pp:+.1f}%)",
         "h_grams": "جرام", "h_shares": "سهم", "h_total": "الإجمالي: ",
         "mv_title": "{a} سعر ذهب عيار 24 تغيّر {d:+.2f} ريال",
         "mv_line": "من {old:,.2f} إلى {new:,.2f} ريال/جرام (ديوان الذهب)",
+        "stance_buy_zone": "تاريخياً منطقة شراء", "stance_accumulate": "تاريخياً يميل للإيجابية",
+        "stance_hold": "تاريخياً محايد - احتفظ / انتظر",
+        "stance_take_profit": "تاريخياً يميل للسلبية - منطقة جني أرباح",
+        "stance_sell_zone": "تاريخياً منطقة بيع",
+        "conf_low": "ثقة منخفضة", "conf_medium": "ثقة متوسطة", "conf_high": "ثقة عالية",
+        "bh_hist60": "تاريخياً، في ظروف مشابهة كان السعر أعلى بعد 60 يوم تداول في {v}% من الحالات",
+        "bh_med60": "الحركة الوسيطة بعد 60 يوم تداول من أيام مشابهة: {v:+}%",
+        "bh_trend_up": "اتجاه صاعد (فوق متوسط 50 و200 يوم)",
+        "bh_trend_down": "اتجاه هابط (تحت متوسط 50 و200 يوم)", "bh_trend_side": "لا يوجد اتجاه واضح",
+        "bh_above_avg": "أعلى بـ {v}% من متوسط 200 يوم (مرتفع جداً)", "bh_below_avg": "أقل بـ {v}% من متوسط 200 يوم",
+        "bh_rsi_high": "مؤشر RSI عند {v} = تشبّع شرائي", "bh_rsi_low": "مؤشر RSI عند {v} = تشبّع بيعي",
+        "bh_range_high": "أعلى من {v}% من أيام السنة الماضية", "bh_range_low": "أقل من {v}% من أيام السنة الماضية",
+        "bh_mom_strong": "صعود قوي خلال 60 يوماً ({v:+}%)", "bh_mom_weak": "ضعف خلال آخر 60 يوماً ({v:+}%)",
+        "bh_season_good": "هذا الشهر كان متوسطه تاريخياً {v:+}%",
+        "bh_season_bad": "هذا الشهر كان متوسطه تاريخياً {v:+}%",
+        "bh_near_res": "مقاومة (قمة سابقة) أعلى بـ {v}%", "bh_near_sup": "دعم (قاع سابق) أقل بـ {v}%",
+        "bh_drawdown": "أقل بـ {v}% من أعلى سعر له", "bh_vol_high": "تذبذب أعلى من المعتاد ({v}% سنوياً)",
+        "bh_pos_gain": "ربحك يعادل {v} ضعف الحركة المعتادة خلال 60 يوماً",
+        "bh_pos_breakeven": "يحتاج السعر {v:+}% ليصل إلى سعر شرائك",
+        "bh_short_history": "تاريخ {v} يوم فقط - غير كافٍ للتحليل",
+        "ol_disclaimer": "احتمالات مبنية على تاريخ سعر هذا الأصل وعدّ بسيط لكلمات العناوين - ليست نصيحة مالية ولا توصية شخصية. الماضي لا يضمن المستقبل.",
+        "ol_short_history": "تاريخ الأسعار غير كافٍ للتوقع",
+        "ol_lean_favourable": "الاحتمالات التاريخية تميل للصعود", "ol_lean_neutral": "الاحتمالات التاريخية متوازنة",
+        "ol_lean_unfavourable": "الاحتمالات التاريخية تميل للهبوط",
+        "ol_odds_up": "احتمال أن يكون السعر أعلى: بعد أسبوع {w}%، بعد شهر {m}%، بعد 3 أشهر {q}%",
+        "ol_range_1m": "النطاق المرجّح بعد شهر (80% من المحاكاة): {lo:,.2f} - {hi:,.2f}",
+        "ol_r_behaviour": "درجة السلوك {v:+}",
+        "ol_r_fc_up21": "{v}% من المحاكاة تنتهي أعلى بعد شهر",
+        "ol_r_fc_up63": "{v}% من المحاكاة تنتهي أعلى بعد 3 أشهر",
+        "ol_r_fc_dip5": "احتمال {v}% أن يلمس -5% خلال شهر",
+        "ol_r_fc_pop5": "احتمال {v}% أن يلمس +5% خلال شهر",
+        "ol_r_fc_buy63": "احتمال {v}% أن يكون فوق سعر شرائك بعد 3 أشهر",
+        "ol_r_news_positive": "{v} عناوين إيجابية مؤخراً", "ol_r_news_negative": "{v} عناوين سلبية مؤخراً",
+        "news_positive": "إيجابي", "news_negative": "سلبي", "news_neutral": "محايد",
+        "news_title": "آخر الأخبار", "news_none": "لا توجد أخبار حديثة",
+        "fc_title": "نطاق الأسعار المحتملة", "fc_prob_up": "احتمال الارتفاع", "fc_touch_up5": "يلمس +5%",
+        "fc_touch_dn5": "يلمس -5%", "fc_above_buy": "فوق سعر الشراء",
+        "bh_disclaimer": "إحصاءات تاريخية فقط وليست نصيحة مالية. الماضي لا يضمن المستقبل.",
     },
 }
 
@@ -302,6 +653,21 @@ META_CHART_TEMPLATE = "gold_report_chart"
 CHART_TEMPLATE_BODY = ("تحديث تنبيه سعر الذهب الذي قمت بإعداده في حسابك على Gold Hunt: {{1}}"
                        " - يمكنك تعديل مستويات التنبيه من الإعدادات.")
 CHART_TEMPLATE_EXAMPLE = "ذهب عيار 24 الآن 395.64 ريال/جرام (+0.4% منذ أمس)"
+# Morning report: chart image on top, one line per holding. Template values can't contain new
+# lines, so each holding gets its own placeholder and the line breaks live in the template itself.
+META_REPORT_TEMPLATE = "gold_portfolio"
+REPORT_SLOTS = 6
+REPORT_TEMPLATE_BODY = (
+    "☀️ صباح الخير - تقرير محفظتك على Gold Hunt ليوم {{1}}\n\n"
+    + "".join(f"{{{{{i}}}}}\n\n" for i in range(2, REPORT_SLOTS + 2))
+    + f"💰 الإجمالي: {{{{{REPORT_SLOTS + 2}}}}}\n\n"
+    "السعر مقارنة بأمس، والكمية وسعر الشراء والربح لكل استثمار. "
+    "الصورة تعرض آخر 30 يوماً. يمكنك تعديل المحفظة من الإعدادات.")
+REPORT_TEMPLATE_EXAMPLE = (
+    ["2026-11-06"]
+    + ["🔴 ذهب عيار 24: 493.83 ريال (أمس 500.60، -1.4%) - 600 جرام بسعر شراء 501.00 - الربح -4,302 ريال (-1.4%)"]
+    + ["🟢 NVIDIA: 191.95 دولار (أمس 181.60، +5.7%) - 10 سهم بسعر شراء 120.00 - الربح +719 دولار (+60.0%)"] * (REPORT_SLOTS - 1)
+    + ["-4,436 ريال (-1.5%)، +719 دولار (+60.0%)"])
 
 
 # ---------------------------------------------------------------- chart
@@ -443,7 +809,7 @@ def send_meta_hello(cfg):
         print(f"  WhatsApp (Meta hello) -> {number[-4:].rjust(len(number), '*')}: HTTP {r.status_code}{err}")
 
 
-def send_meta(cfg, text, chart=None):
+def send_meta(cfg, text, chart=None, slots=None):
     """Send through the approved template. Template values can't hold new lines or tabs,
     or more than 4 spaces in a row, so the alert is flattened into one line.
     A chart (PNG bytes) goes in the template's image header; if the template has none,
@@ -470,6 +836,17 @@ def send_meta(cfg, text, chart=None):
     for number in cfg["to"]:
         masked = number[-4:].rjust(len(number), "*")
         try:
+            if slots and media_id:  # multi-line report with the chart on top
+                r, code = call({"messaging_product": "whatsapp", "to": number, "type": "template",
+                                "template": {"name": META_REPORT_TEMPLATE, "language": {"code": "ar"}, "components": [
+                                    {"type": "header", "parameters": [{"type": "image", "image": {"id": media_id}}]},
+                                    {"type": "body", "parameters": [
+                                        {"type": "text", "text": " ".join(v.split())[:300]} for v in slots]}]}})
+                if r.ok:
+                    delivered = True
+                    print(f"  WhatsApp (Meta report) -> {masked}: HTTP {r.status_code} with chart")
+                    continue
+                print(f"  Report template not usable yet: HTTP {r.status_code} {code}")
             templates = ([META_CHART_TEMPLATE] if media_id else []) + [META_TEMPLATE, META_FALLBACK_TEMPLATE]
             for template in dict.fromkeys(templates):  # in order, without repeats
                 r, code = post(number, template, media_id)
@@ -494,7 +871,7 @@ def send_meta(cfg, text, chart=None):
     return delivered
 
 
-def create_chart_template(cfg, sample_png):
+def create_chart_template(cfg, sample_png, name=META_CHART_TEMPLATE):
     """One-time setup: create the gold_report_chart template (Arabic, Utility, image header)
     on the WhatsApp Business Account, or report its status if it already exists.
     Prints only status lines - no token, numbers or prices."""
@@ -541,13 +918,13 @@ def create_chart_template(cfg, sample_png):
         return False
 
     r = requests.get(graph + f"{waba}/message_templates", headers=auth, timeout=30,
-                     params={"name": META_CHART_TEMPLATE, "fields": "name,status,category,language"})
+                     params={"name": name, "fields": "name,status,category,language"})
     if not r.ok:
         show_error(r, "list_templates")
         return False
     for t in r.json().get("data", []):
-        if t.get("name") == META_CHART_TEMPLATE:
-            print(f"TEMPLATE_EXISTS {t.get('status')} {t.get('category')} {t.get('language')}")
+        if t.get("name") == name:
+            print(f"TEMPLATE_EXISTS {name} {t.get('status')} {t.get('category')} {t.get('language')}")
             return True
 
     # The sample header image has to be uploaded first (Resumable Upload API -> handle)
@@ -565,29 +942,35 @@ def create_chart_template(cfg, sample_png):
     handle = r.json()["h"]
 
     body = {
-        "name": META_CHART_TEMPLATE, "language": "ar", "category": "UTILITY",
+        "name": name, "language": "ar", "category": "UTILITY",
         "components": [
             {"type": "HEADER", "format": "IMAGE", "example": {"header_handle": [handle]}},
             {"type": "BODY", "text": CHART_TEMPLATE_BODY,
              "example": {"body_text": [[CHART_TEMPLATE_EXAMPLE]]}},
         ],
     }
+    if name == META_REPORT_TEMPLATE:
+        body["components"][1] = {"type": "BODY", "text": REPORT_TEMPLATE_BODY,
+                                 "example": {"body_text": [REPORT_TEMPLATE_EXAMPLE]}}
+        body["components"].append({"type": "BUTTONS", "buttons": [
+            {"type": "URL", "text": "شارت الذهب على TradingView",
+             "url": "https://www.tradingview.com/chart/?symbol=TVC:GOLD"}]})
     r = requests.post(graph + f"{waba}/message_templates", headers=auth, json=body, timeout=30)
     if not r.ok:
         show_error(r, "create_template")
         return False
     j = r.json()
-    print(f"TEMPLATE_CREATED {j.get('status')} {j.get('category')}")
+    print(f"TEMPLATE_CREATED {name} {j.get('status')} {j.get('category')}")
     return True
 
 
-def send_whatsapp(phones, text, chart=None):
+def send_whatsapp(phones, text, chart=None, slots=None):
     """Send to every recipient; return True if at least one message was delivered.
     Uses Meta's WhatsApp Cloud API when configured (with the chart image),
     otherwise CallMeBot numbers (text only)."""
     meta = meta_config()
     if meta:
-        return send_meta(meta, text, chart)
+        return send_meta(meta, text, chart, slots)
     delivered = False
     for phone, key in phones.items():
         url = ("https://api.callmebot.com/whatsapp.php?phone=" + phone.strip()
@@ -684,7 +1067,8 @@ def holding_line(a, T):
     """One line per holding: today vs yesterday, what you hold at what price, profit/loss."""
     name = T["gold_name"] if a["key"] == "GOLD" else a["name"]
     c = T.get("cur_" + a["currency"], a["currency"])
-    line = T["h_line"].format(n=name, p=a["price"], y=a["prev"], d=a["price"] - a["prev"], cp=a["change_pct"])
+    up = (a["pl"] if a["pl"] is not None else a["change_pct"]) >= 0
+    line = T["h_line"].format(i="🟢" if up else "🔴", n=name, p=a["price"], c=c, y=a["prev"], cp=a["change_pct"])
     if a["pl"] is not None:
         qty = T["h_grams"] if a["key"] == "GOLD" else T["h_shares"]
         line += T["h_pl"].format(q=a["qty"], qn=qty, b=a["buy"], pl=a["pl"], pp=a["pl_pct"], c=c)
@@ -703,17 +1087,23 @@ def morning_report(assets, cfg_alerts, phones, send=True):
             print(f"FAILED_ASSET {type(e).__name__}")
     if not results:
         return
-    lines = [T["morning"].format(d=dt.datetime.now(RIYADH).strftime("%Y-%m-%d"))]
-    lines += [holding_line(a, T) for a in results]
+    day = dt.datetime.now(RIYADH).strftime("%Y-%m-%d")
+    lines = [T["morning"].format(d=day)]
+    holdings = [holding_line(a, T) for a in results]
+    lines += holdings
     totals = {}
     for a in results:
         if a["pl"] is not None:
             t = totals.setdefault(a["currency"], [0.0, 0.0])
             t[0] += a["pl"]
             t[1] += a["buy"] * a["qty"]
-    if totals:
-        lines.append(T["h_total"] + T["sep"].join(
-            f"{pl:+,.0f} {T.get('cur_' + c, c)} ({pl / cost * 100:+.1f}%)" for c, (pl, cost) in totals.items() if cost))
+    total = T["sep"].join(f"{pl:+,.0f} {T.get('cur_' + c, c)} ({pl / cost * 100:+.1f}%)"
+                          for c, (pl, cost) in totals.items() if cost) or "-"
+    lines.append(T["h_total"] + total)
+    # One placeholder per holding in the report template; extra holdings share the last one
+    spots = holdings[:REPORT_SLOTS - 1] + [" | ".join(holdings[REPORT_SLOTS - 1:]) or "-"]
+    spots += ["-"] * (REPORT_SLOTS - len(spots))
+    slots = [day] + spots + [total]
     # Links last, only as many as fit in the ~1000-character template value
     links, size = [], len(" | ".join(lines))
     for a in results:
@@ -725,7 +1115,7 @@ def morning_report(assets, cfg_alerts, phones, send=True):
     text = "\n".join(lines + links)
     print(text)
     if send:
-        send_whatsapp(phones, text, portfolio_chart(results))
+        send_whatsapp(phones, text, portfolio_chart(results), slots)
 
 
 # ---------------------------------------------------------------- dashboard
@@ -764,7 +1154,9 @@ def main():
             print("Meta WhatsApp is not configured (META_WA_TOKEN / META_WA_PHONE_ID / META_WA_TO)")
             sys.exit(1)
         gold = next(a for a in assets if a["key"] == "GOLD")
-        if not create_chart_template(cfg, price_chart(analyse(gold, fetch(gold)))):
+        png = price_chart(analyse(gold, fetch(gold)))
+        ok = [create_chart_template(cfg, png, n) for n in (META_CHART_TEMPLATE, META_REPORT_TEMPLATE)]
+        if not all(ok):
             sys.exit(1)
         return
     if "--hello" in sys.argv:

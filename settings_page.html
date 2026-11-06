@@ -300,7 +300,7 @@ $('#save').onclick=async()=>{
  const btn=$('#save');btn.disabled=true;status(t('h_saving'));
  try{
   const r=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();
-  if(!r.ok)status(d.error,'err');else{dirty=false;d.github?status(t('h_saved'),'ok'):status(t('h_savedpc',{e:d.error||'?'}),'err')}
+  if(!r.ok)status(d.error,'err');else{dirty=false;d.github?status(t('h_saved'),'ok'):status(t('h_savedpc',{e:d.error||'?'}),d.local_only?'ok':'err')}
  }catch{status(t('h_noserver'),'err')}
  btn.disabled=false;
 };
