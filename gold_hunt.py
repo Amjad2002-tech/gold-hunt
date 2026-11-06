@@ -248,11 +248,14 @@ TEXT = {
         "verdict_none": "No sell signal - trend not stretched",
         "trend_up": "Uptrend", "trend_down": "Downtrend", "trend_side": "Sideways",
         "test": "✅ Gold Hunt test message - alerts are working.",
-        "morning": "☀️ Good morning - gold report {d}",
+        "morning": "☀️ Good morning - your portfolio report {d}",
         "m_price": "Gold 24K now {p:,.2f} SAR/gram ({c:+.1f}% since yesterday)",
         "m_pl": "Your {g:,.0f} g bought at {b:,.2f}: {pl:+,.0f} SAR ({pp:+.1f}%)",
         "m_range": "2-year range {lo:,.0f} - {hi:,.0f} - today is higher than {r}% of days",
         "m_signal": "Signal: {v}",
+        "h_line": "{n}: today {p:,.2f} / yesterday {y:,.2f} ({d:+,.2f}, {cp:+.1f}%)",
+        "h_pl": " - you hold {q:,.0f} {qn} at {b:,.2f}, profit {pl:+,.0f} {c} ({pp:+.1f}%)",
+        "h_grams": "g", "h_shares": "shares", "h_total": "Total: ",
         "mv_title": "{a} Gold 24K moved {d:+.2f} SAR",
         "mv_line": "From {old:,.2f} to {new:,.2f} SAR/gram (dewanaldahab.com)",
     },
@@ -272,11 +275,14 @@ TEXT = {
         "verdict_none": "لا توجد إشارة بيع",
         "trend_up": "اتجاه صاعد", "trend_down": "اتجاه هابط", "trend_side": "اتجاه عرضي",
         "test": "✅ رسالة تجريبية من Gold Hunt - التنبيهات تعمل.",
-        "morning": "☀️ صباح الخير - تقرير الذهب {d}",
+        "morning": "☀️ صباح الخير - تقرير محفظتك {d}",
         "m_price": "ذهب عيار 24 الآن {p:,.2f} ريال/جرام ({c:+.1f}% منذ أمس)",
         "m_pl": "لديك {g:,.0f} جرام بسعر شراء {b:,.2f}: {pl:+,.0f} ريال ({pp:+.1f}%)",
         "m_range": "نطاق السنتين {lo:,.0f} - {hi:,.0f} - السعر اليوم أعلى من {r}% من الأيام",
         "m_signal": "الإشارة: {v}",
+        "h_line": "{n}: اليوم {p:,.2f} / أمس {y:,.2f} ({d:+,.2f}، {cp:+.1f}%)",
+        "h_pl": " - لديك {q:,.0f} {qn} بسعر {b:,.2f}، الربح {pl:+,.0f} {c} ({pp:+.1f}%)",
+        "h_grams": "جرام", "h_shares": "سهم", "h_total": "الإجمالي: ",
         "mv_title": "{a} سعر ذهب عيار 24 تغيّر {d:+.2f} ريال",
         "mv_line": "من {old:,.2f} إلى {new:,.2f} ريال/جرام (ديوان الذهب)",
     },
@@ -343,6 +349,58 @@ def price_chart(a, days=30, ref=None):
     fig.text(0.99, 0.01, "Gold Hunt - " + dt.datetime.now(RIYADH).strftime("%Y-%m-%d %H:%M") + " Riyadh",
              ha="right", fontsize=7, color="#8a8a8a")
     fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png")
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def portfolio_chart(results, days=30):
+    """One PNG with a small 30-day chart per holding (WhatsApp templates carry one image)."""
+    try:
+        import io
+        import math
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+    except ImportError:
+        print("Chart skipped (matplotlib not installed)")
+        return None
+    cols = 2 if len(results) > 1 else 1
+    rows = math.ceil(len(results) / cols)
+    fig, axes = plt.subplots(rows, cols, figsize=(5.2 * cols, 2.9 * rows), dpi=130, squeeze=False)
+    fig.patch.set_facecolor("#ffffff")
+    for ax, a in zip(axes.flat, results):
+        dates = pd.to_datetime(a["series"]["dates"])
+        keep = dates >= dates[-1] - pd.Timedelta(days=days)
+        d, close = dates[keep], [c for c, k in zip(a["series"]["close"], keep) if k]
+        if len(close) < 2:
+            ax.set_visible(False)
+            continue
+        color = "#1f9d55" if close[-1] >= close[0] else "#d64545"
+        ax.plot(d, close, color=color, linewidth=1.8)
+        ax.fill_between(d, close, min(close), color=color, alpha=0.10)
+        lo, hi = min(close), max(close)
+        if a.get("buy") and lo - (hi - lo) * 0.6 <= a["buy"] <= hi + (hi - lo) * 0.6:
+            ax.axhline(a["buy"], color="#6b6b6b", linestyle="--", linewidth=0.9)
+            ax.annotate(f"Buy {a['buy']:,.2f}", (d[0], a["buy"]), textcoords="offset points",
+                        xytext=(2, 3), fontsize=7, color="#6b6b6b")
+        name = "Gold 24K" if a["key"] == "GOLD" else a["name"]
+        unit = "SAR/g" if a["key"] == "GOLD" else a["currency"]
+        pl = f"   P/L {a['pl_pct']:+.1f}%" if a.get("pl_pct") is not None else ""
+        ax.set_title(f"{name}  {close[-1]:,.2f} {unit}  ({(close[-1] / close[0] - 1) * 100:+.1f}%){pl}",
+                     fontsize=9.5, loc="left", color="#222222")
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
+        ax.tick_params(labelsize=7)
+        ax.grid(axis="y", alpha=0.25)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    for ax in list(axes.flat)[len(results):]:
+        ax.set_visible(False)
+    fig.text(0.99, 0.005, f"Gold Hunt - last {days} days - " + dt.datetime.now(RIYADH).strftime("%Y-%m-%d %H:%M")
+             + " Riyadh", ha="right", fontsize=7, color="#8a8a8a")
+    fig.tight_layout(rect=(0, 0.02, 1, 1))
     buf = io.BytesIO()
     fig.savefig(buf, format="png")
     plt.close(fig)
@@ -611,22 +669,63 @@ def watch_gold(assets, cfg_alerts, phones, send=True):
         GOLD_REF.write_text(json.dumps({"price": price}))
 
 
-def morning_report(assets, cfg_alerts, phones, send=True):
-    """Daily gold-only summary (sent by the 8:00 AM Riyadh schedule)."""
-    T = TEXT[cfg_alerts["lang"]]
-    gold = next(a for a in assets if a["key"] == "GOLD")
-    a = analyse(gold, fetch(gold))
-    lines = [T["morning"].format(d=dt.datetime.now(RIYADH).strftime("%Y-%m-%d")),
-             T["m_price"].format(p=a["price"], c=a["change_pct"])]
+def tradingview_url(a):
+    """Link to the holding's live TradingView chart."""
+    if a["key"] == "GOLD":
+        sym = "TVC:GOLD"
+    elif a["ticker"].endswith(".SR"):
+        sym = "TADAWUL:" + a["ticker"][:-3]
+    else:
+        sym = a["ticker"]  # TradingView finds the US exchange by itself
+    return "https://www.tradingview.com/chart/?symbol=" + urllib.parse.quote(sym, safe=":")
+
+
+def holding_line(a, T):
+    """One line per holding: today vs yesterday, what you hold at what price, profit/loss."""
+    name = T["gold_name"] if a["key"] == "GOLD" else a["name"]
+    c = T.get("cur_" + a["currency"], a["currency"])
+    line = T["h_line"].format(n=name, p=a["price"], y=a["prev"], d=a["price"] - a["prev"], cp=a["change_pct"])
     if a["pl"] is not None:
-        lines.append(T["m_pl"].format(g=a["qty"], b=a["buy"], pl=a["pl"], pp=a["pl_pct"]))
-    lines.append(T["m_range"].format(lo=a["lo"], hi=a["hi"], r=round(a["pct_rank"])))
-    reasons = T["sep"].join(T["reason_" + k].format(v=v) for k, v in a["reason_codes"])
-    lines.append(T["m_signal"].format(v=T["verdict_" + a["verdict_code"]]) + (f" ({reasons})" if reasons else ""))
-    text = "\n".join(lines)
+        qty = T["h_grams"] if a["key"] == "GOLD" else T["h_shares"]
+        line += T["h_pl"].format(q=a["qty"], qn=qty, b=a["buy"], pl=a["pl"], pp=a["pl_pct"], c=c)
+    return line
+
+
+def morning_report(assets, cfg_alerts, phones, send=True):
+    """Daily summary of every holding (sent by the 8:00 AM Riyadh schedule) with one chart image
+    that has a small 30-day chart per holding, and TradingView links as far as Meta's length allows."""
+    T = TEXT[cfg_alerts["lang"]]
+    results = []
+    for a in assets:
+        try:
+            results.append(analyse(a, fetch(a)))
+        except Exception as e:
+            print(f"FAILED_ASSET {type(e).__name__}")
+    if not results:
+        return
+    lines = [T["morning"].format(d=dt.datetime.now(RIYADH).strftime("%Y-%m-%d"))]
+    lines += [holding_line(a, T) for a in results]
+    totals = {}
+    for a in results:
+        if a["pl"] is not None:
+            t = totals.setdefault(a["currency"], [0.0, 0.0])
+            t[0] += a["pl"]
+            t[1] += a["buy"] * a["qty"]
+    if totals:
+        lines.append(T["h_total"] + T["sep"].join(
+            f"{pl:+,.0f} {T.get('cur_' + c, c)} ({pl / cost * 100:+.1f}%)" for c, (pl, cost) in totals.items() if cost))
+    # Links last, only as many as fit in the ~1000-character template value
+    links, size = [], len(" | ".join(lines))
+    for a in results:
+        link = f"{T['gold_name'] if a['key'] == 'GOLD' else a['ticker']}: {tradingview_url(a)}"
+        if size + len(link) + 3 > 990:
+            break
+        links.append(link)
+        size += len(link) + 3
+    text = "\n".join(lines + links)
     print(text)
     if send:
-        send_whatsapp(phones, text, price_chart(a))
+        send_whatsapp(phones, text, portfolio_chart(results))
 
 
 # ---------------------------------------------------------------- dashboard
